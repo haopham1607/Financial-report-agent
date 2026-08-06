@@ -1,0 +1,21 @@
+# Secrets — never commit
+.env
+
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Runtime state & generated output
+jobs.json
+jobs.json.tmp
+reports/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
