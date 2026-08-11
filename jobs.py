@@ -1,4 +1,4 @@
-"""Job persistence: which research runs exist and where they stand.
+"""Job persistence: which report jobs exist and where they stand.
 
 Storage lives entirely behind JobStore — to move from the JSON file to
 SQLite (or anything else) later, only this class changes.
@@ -20,16 +20,14 @@ _JOB_FIELDS = None  # populated after Job is defined
 @dataclass
 class Job:
     company: str
-    interaction_id: str
     started_at: str
     state: str = "running"  # running | done | failed
     report_path: str | None = None
 
     @classmethod
-    def new(cls, company: str, interaction_id: str) -> "Job":
+    def new(cls, company: str) -> "Job":
         return cls(
             company=company,
-            interaction_id=interaction_id,
             started_at=datetime.datetime.now().isoformat(timespec="seconds"),
         )
 
@@ -54,7 +52,7 @@ class JobStore:
             return []
         jobs = []
         for item in items:
-            if isinstance(item, dict) and {"company", "interaction_id"} <= item.keys():
+            if isinstance(item, dict) and "company" in item:
                 jobs.append(Job(**{k: v for k, v in item.items() if k in _JOB_FIELDS}))
         return jobs
 

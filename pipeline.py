@@ -1,34 +1,29 @@
-"""Assemble a structured report from the research + data sources.
+"""Assemble a structured report from the data source + gathered context.
 
-This is the report-building brain, kept separate from job orchestration
-(`agent.py`) so it can be tested and reused on its own. Given a company name
-and its research text, it returns the report dict the dashboard renders.
+Given a company name: fetch its numbers from the data source, gather qualitative
+context from a grounded web search (fixed format), then have the writer fuse the
+two into the structured financial-health report — with the data source owning
+every figure. Kept separate from job orchestration so it is testable/reusable.
 """
 
 from data_source import fetch_financials, resolve_ticker
-from financials import merge_extraction, missing_critical_fields
-from research import extract_financials, extract_narrative, reextract_field
+from research import gather_context, write_narrative
 
 
-def build_report(company: str, research_text: str) -> dict:
+def build_report(company: str) -> dict:
     """Build the report dict for one company.
 
-    yfinance-primary: numbers come from the structured data source (authoritative)
-    and the narrative from the research. When the data source has no coverage for
-    the company, fall back to extracting the numbers from the research prose (with
-    the completeness gate).
+    Numbers come from the data source (authoritative). A grounded search gathers
+    qualitative context (business, segments, developments, risks, ...). The
+    writer combines the numbers and the context into the report; the context and
+    its sources are carried through for display.
     """
     ticker = resolve_ticker(company)
     numbers = fetch_financials(ticker) if ticker else {}
 
-    if numbers:
-        data = extract_narrative(research_text)
-        data.update(numbers)  # yfinance owns financials / margins / bs / cf / unit
-        return data
-
-    # Fallback: no structured data for this company — extract numbers from prose.
-    data = extract_financials(research_text)
-    for field in missing_critical_fields(data):
-        years = [r.get("year") for r in data.get("financials") or []]
-        data = merge_extraction(data, reextract_field(research_text, field, years))
+    context, sources = gather_context(company)
+    data = write_narrative(company, numbers, context)
+    data.update(numbers)  # data source owns financials / margins / bs / cf / unit
+    data["context"] = context
+    data["sources"] = sources
     return data

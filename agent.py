@@ -1,22 +1,20 @@
-"""Financial-report research orchestrator and CLI.
+"""Financial-report orchestrator and CLI.
 
-Research runs server-side as background interactions, so the CLI works
-like a small job queue instead of blocking for minutes:
+Work runs as a small local job queue: queue companies, then build them.
 
-    python agent.py FPT              start a job, exit immediately
-    python agent.py FPT, Apple       start several jobs at once
-    python agent.py status           check jobs; finished ones get their
-                                     data extracted and report written
+    python agent.py FPT              queue a job, exit immediately
+    python agent.py FPT, Apple       queue several at once
+    python agent.py status           build pending jobs; write their reports
 
 Module layout:
     config.py       language + prompts
-    model.py        Gemini client + model/agent names
+    model.py        Gemini client + model name
     i18n.py         all user-facing text (report, charts, UI), per language
     schemas.py      the structured report data contracts (Pydantic)
-    financials.py   pure report-dict logic (merge, gate, forecast filter)
+    financials.py   pure report-dict logic (completeness gate, forecast filter)
     jobs.py         Job dataclass + JobStore (persistence)
-    research.py     the Google / LLM API calls
-    data_source.py  yfinance structured financials
+    data_source.py  yfinance structured financials + name->ticker
+    research.py     gather_context (grounded search) + write_narrative (writer)
     pipeline.py     build_report() — assembles a report from the sources
     report.py       markdown + JSON report writer
     charts.py       ECharts builders + palette
@@ -31,17 +29,20 @@ from i18n import get_labels
 from jobs import Job, JobStore
 from pipeline import build_report
 from report import write_report
-from research import check_research, start_research
 
 store = JobStore()
 
 
-def start_research_jobs(companies: list[str]) -> list[Job]:
-    """Start one background research job per company; returns the new jobs."""
+def queue_jobs(companies: list[str]) -> list[Job]:
+    """Queue one job per company (state 'running'); returns the new jobs.
+
+    The actual work (data fetch + grounded search + writer) runs on the next
+    refresh_jobs() call.
+    """
     jobs = store.load()
     new_jobs = []
     for company in companies:
-        job = Job.new(company, start_research(company))
+        job = Job.new(company)
         jobs.append(job)
         new_jobs.append(job)
     store.save(jobs)
@@ -49,21 +50,20 @@ def start_research_jobs(companies: list[str]) -> list[Job]:
 
 
 def clear_finished_jobs() -> list[Job]:
-    """Drop done/failed jobs from history; keep running ones (whose research
-    is still live on Google's side). Returns the remaining jobs."""
+    """Drop done/failed jobs from history; keep pending (running) ones.
+    Returns the remaining jobs."""
     remaining = [job for job in store.load() if job.state == "running"]
     store.save(remaining)
     return remaining
 
 
 def refresh_jobs() -> tuple[list[Job], list[str]]:
-    """Poll running jobs once; extract + write reports for finished ones.
+    """Build every pending job and write its report.
 
-    Each job is handled independently and its progress is saved as soon as it
-    reaches a terminal state, so a failure on one job (e.g. a rate limit during
-    extraction) neither aborts the batch nor rolls back another job that has
-    already finished. A job that hits a transient error is left `running` so
-    the next poll retries it.
+    Each job is handled independently and saved as soon as it reaches a terminal
+    state, so one job's failure (e.g. a rate limit) neither aborts the batch nor
+    rolls back a job that already finished; a transient failure leaves the job
+    `running` to retry on the next call.
 
     Returns (all jobs, human-readable event messages).
     """
@@ -75,25 +75,11 @@ def refresh_jobs() -> tuple[list[Job], list[str]]:
         if job.state != "running":
             continue
         try:
-            status, research_text = check_research(job.interaction_id)
-        except Exception as e:
-            events.append(f"[{job.company}] " + lab["ev_check_fail"].format(error=e))
-            continue
-
-        if status == "in_progress":
-            continue
-        if status != "completed":
-            job.state = "failed"
-            events.append(f"[{job.company}] " + lab["ev_failed"].format(status=status))
-            store.save(jobs)
-            continue
-
-        try:
-            data = build_report(job.company, research_text)
+            data = build_report(job.company)
         except Exception as e:
             # A transient error (e.g. a rate limit) must not abort the batch or
             # discard the other jobs' progress: leave this job `running` so the
-            # next poll retries it, and move on.
+            # next call retries it, and move on.
             events.append(
                 f"[{job.company}] "
                 + lab["ev_process_retry"].format(error=str(e)[:120]))
@@ -106,11 +92,11 @@ def refresh_jobs() -> tuple[list[Job], list[str]]:
             store.save(jobs)
             continue
 
-        job.report_path = write_report(job.company, data, research_text)
+        job.report_path = write_report(job.company, data)
         job.state = "done"
         events.append(f"[{job.company}] " + lab["ev_ready"])
-        # Soft note: report written, but a critical figure (e.g. revenue) still
-        # could not be found anywhere in the research.
+        # Soft note: report written, but a critical figure (e.g. revenue) could
+        # not be found (e.g. the company isn't in the data source).
         if missing_critical_fields(data):
             events.append(f"[{job.company}] " + lab["ev_data_incomplete"])
         store.save(jobs)
@@ -144,6 +130,6 @@ if __name__ == "__main__":
         print("No company name given.")
         sys.exit(1)
 
-    for job in start_research_jobs(companies):
-        print(f"[{job.company}] research started (id: {job.interaction_id[:24]}...)")
-    print("\nJobs are running server-side. Check them with: python agent.py status")
+    for job in queue_jobs(companies):
+        print(f"[{job.company}] queued")
+    print("\nJobs queued. Build them with: python agent.py status")

@@ -23,7 +23,8 @@ LABELS = {
         "net": "Net margin",
         "highlights": "Highlights",
         "risks": "Risks",
-        "full_research": "Full Research",
+        "full_research": "Analysis",
+        "sources": "Sources",
         "none": "_None extracted._",
         "unknown": "n/a",
         "trend": "Revenue & Profit over time",
@@ -48,10 +49,9 @@ LABELS = {
         # --- app UI ---
         "app_title": "📊 Financial Report Agent",
         "app_caption": (
-            "Type a company name and start a research job. Research runs in "
-            "the background on Google's servers (typically 5–10 minutes) — "
-            "you can start several jobs at once and refresh to collect "
-            "finished reports."
+            "Type one or more company names and start. Reports are built when "
+            "you hit Refresh — you can queue several at once and collect them "
+            "as they finish."
         ),
         "company_input": "Company name(s), comma-separated",
         "company_placeholder": "e.g. Tesla, Apple",
@@ -68,7 +68,7 @@ LABELS = {
         "state_done": "done",
         "state_failed": "failed",
         "job_done": "Report ready: `{name}` — open it in the **Reports** tab.",
-        "job_running": "Research in progress — hit Refresh to update.",
+        "job_running": "Pending — hit Refresh to build it.",
         "job_failed": "This research run failed. Start it again above.",
         "no_reports": "No reports yet — they appear here once a job finishes.",
         "open_report": "Open a report",
@@ -77,20 +77,18 @@ LABELS = {
         "confirm_delete": "⚠️ Confirm delete",
         # --- job-event toasts (from agent.refresh_jobs) ---
         "ev_ready": "report ready",
-        "ev_failed": "research failed (status: {status})",
         "ev_no_data": (
-            "no financial figures could be extracted from the research, so "
-            "the report was not written. Try running it again."
+            "no financial data was found for this company, so the report was "
+            "not written. Try again."
         ),
         "ev_data_incomplete": (
-            "report ready, but revenue could not be found in the research — "
+            "report ready, but revenue could not be found for this company — "
             "the revenue chart may be incomplete."
         ),
         "ev_process_retry": (
             "could not process yet ({error}) — left running, will retry on the "
             "next refresh."
         ),
-        "ev_check_fail": "could not check status ({error})",
     },
     "Vietnamese": {
         # --- report + chart labels ---
@@ -107,7 +105,8 @@ LABELS = {
         "net": "Biên LN ròng",
         "highlights": "Điểm nổi bật",
         "risks": "Rủi ro",
-        "full_research": "Toàn văn nghiên cứu",
+        "full_research": "Phân tích",
+        "sources": "Nguồn",
         "none": "_Không có dữ liệu._",
         "unknown": "không rõ",
         "trend": "Doanh thu & Lợi nhuận theo năm",
@@ -132,10 +131,9 @@ LABELS = {
         # --- app UI ---
         "app_title": "📊 Trợ lý Báo cáo Tài chính",
         "app_caption": (
-            "Nhập tên công ty và bắt đầu một lượt nghiên cứu. Quá trình chạy "
-            "ngầm trên máy chủ của Google (thường 5–10 phút) — bạn có thể "
-            "chạy nhiều công ty cùng lúc và nhấn Làm mới để lấy báo cáo đã "
-            "hoàn tất."
+            "Nhập một hoặc nhiều tên công ty và bắt đầu. Báo cáo được tạo khi "
+            "bạn nhấn Làm mới — bạn có thể xếp hàng nhiều công ty cùng lúc và "
+            "lấy báo cáo khi hoàn tất."
         ),
         "company_input": "Tên công ty (cách nhau bằng dấu phẩy)",
         "company_placeholder": "ví dụ: FPT, Apple, Samsung",
@@ -152,7 +150,7 @@ LABELS = {
         "state_done": "hoàn tất",
         "state_failed": "thất bại",
         "job_done": "Báo cáo đã sẵn sàng: `{name}` — mở ở tab **Báo cáo**.",
-        "job_running": "Đang nghiên cứu — nhấn Làm mới để cập nhật.",
+        "job_running": "Đang chờ — nhấn Làm mới để tạo báo cáo.",
         "job_failed": "Lượt nghiên cứu này thất bại. Hãy chạy lại ở trên.",
         "no_reports": "Chưa có báo cáo nào — sẽ xuất hiện khi một công việc hoàn tất.",
         "open_report": "Mở một báo cáo",
@@ -161,20 +159,18 @@ LABELS = {
         "confirm_delete": "⚠️ Xác nhận xóa",
         # --- job-event toasts ---
         "ev_ready": "báo cáo đã sẵn sàng",
-        "ev_failed": "nghiên cứu thất bại (trạng thái: {status})",
         "ev_no_data": (
-            "không trích xuất được số liệu tài chính nào từ nghiên cứu nên "
-            "báo cáo chưa được tạo. Vui lòng chạy lại."
+            "không tìm thấy số liệu tài chính cho công ty này nên báo cáo "
+            "chưa được tạo. Vui lòng thử lại."
         ),
         "ev_data_incomplete": (
-            "báo cáo đã sẵn sàng, nhưng không tìm thấy doanh thu trong nghiên "
-            "cứu — biểu đồ doanh thu có thể chưa đầy đủ."
+            "báo cáo đã sẵn sàng, nhưng không tìm thấy doanh thu cho công ty "
+            "này — biểu đồ doanh thu có thể chưa đầy đủ."
         ),
         "ev_process_retry": (
             "chưa xử lý được ({error}) — vẫn để đang chạy, sẽ thử lại ở lần "
             "làm mới sau."
         ),
-        "ev_check_fail": "không kiểm tra được trạng thái ({error})",
     },
 }
 

@@ -2,8 +2,8 @@
 
 Generate a visual **financial-health dashboard** for any public company from a
 plain name. You type `Vinamilk` (or `Apple`, or a comma-separated list); the app
-researches the company, pulls its financials, and renders a report with charts,
-a health verdict, highlights, and risks.
+pulls its financials, gathers current context from the web, and renders a report
+with charts, a health verdict, highlights, risks, and cited sources.
 
 Output is written in **Vietnamese** by default (configurable) — but the
 companies can be from **any market** (Vietnam via `.VN` tickers, US, etc.).
@@ -19,35 +19,39 @@ For each company it produces a report with:
 - **Charts** — revenue & profit trend, revenue by segment, profit share, cash vs debt, cash flow
 - **A financial-safety section** — debt-to-equity, current ratio
 - **Highlights & risks** — short qualitative bullets
-- The full underlying research text
+- The gathered analysis text and its **sources**
 
-## How it works (in one picture)
+## How it works
 
 ```
 company name
      │
      ▼
- deep research agent ──► research text (prose: narrative, context, segments)
-     │                          │
-     │                          ▼
-     │                   extract_narrative ──► summary, verdict, health,
-     │                    (LLM)                 highlights, risks, segments
-     ▼
- resolve_ticker (LLM) ─► ticker ─► yfinance ─► revenue, margins, balance
-                                    (numbers)   sheet, cash flow  (deterministic)
-                                       │
-                                       ▼
-                          build_report() merges them
-                                       │
-                                       ▼
-                     report .json / .md ──► Streamlit dashboard
+ resolve_ticker (LLM) ─► ticker ─► yfinance ─► NUMBERS  (revenue, margins,
+                                    (deterministic)      balance sheet, cash flow)
+     │                                              │
+     ▼                                              │
+ gather_context (grounded web search) ─► qualitative CONTEXT + sources
+     │  (business, segments, developments, outlook, competitors, risks)
+     └───────────────────────────────┬──────────────┘
+                                      ▼
+                     write_narrative (LLM writer)
+                       fuses NUMBERS + CONTEXT ─► structured report
+                                      │
+                                      ▼
+                     report .json / .md ─► Streamlit dashboard
 ```
 
 **The core design principle:** the **numbers come from a structured data source
-(yfinance) — deterministic and authoritative** — while the **LLM only writes the
-narrative** (what the numbers mean). Numbers are facts; prose is judgment. If a
-company isn't on yfinance, it falls back to extracting numbers from the research
-text with the LLM.
+(yfinance) — deterministic and authoritative.** A **grounded web search** gathers
+the qualitative context the numbers can't provide, and a **writer model** fuses
+the two into the report. So the story always matches the charts. Three roles:
+
+| Stage | Tool | Owns |
+|-------|------|------|
+| Numbers | **yfinance** | every figure → the charts |
+| Context | **grounded search** (Google Search tool) | business, segments, developments, risks + sources |
+| Report | **writer model** | fuses numbers + context → verdict, summary, highlights, risks |
 
 ## Setup
 
@@ -66,14 +70,14 @@ cp .env.example .env        # then edit .env and add your GEMINI_API_KEY
 ```bash
 ./.venv/bin/streamlit run app.py
 ```
-Enter one or more company names, start the research, and hit **Refresh** to
-collect finished reports (research runs in the background, ~5–11 min each).
+Enter one or more company names, start them, and hit **Refresh** to build the
+reports (the work runs on refresh; a batch takes a little while).
 
 ### Command line
 ```bash
-python agent.py "FPT"                 # start one research job, exit immediately
-python agent.py "FPT, Apple, MWG"     # start several at once
-python agent.py status                # poll jobs; write reports for finished ones
+python agent.py "FPT"                 # queue one job, exit immediately
+python agent.py "FPT, Apple, MWG"     # queue several at once
+python agent.py status                # build pending jobs; write their reports
 ```
 
 Reports land in `reports/` as a `.json` (drives the dashboard) plus a `.md`
@@ -85,8 +89,7 @@ Reports land in `reports/` as a `.json` (drives the dashboard) plus a `.md`
 |-------|---------|---------|
 | `config.py` | `REPORT_LANGUAGE` | `"Vietnamese"` (set `"English"` to switch all output) |
 | `.env` | `GEMINI_API_KEY` | *(required)* |
-| `.env` | `RISK_AGENT_MODEL` | `gemini-3.6-flash` (extraction + name→ticker) |
-| `.env` | `RISK_AGENT_RESEARCH_AGENT` | `deep-research-preview-04-2026` |
+| `.env` | `RISK_AGENT_MODEL` | `gemini-3.6-flash` (search + writer + name→ticker) |
 
 ## Tests
 
@@ -95,7 +98,7 @@ Plain-assert test files, no framework needed:
 ```bash
 ./.venv/bin/python test_financials.py     # pure report-dict logic
 ./.venv/bin/python test_data_source.py    # yfinance adapter
-./.venv/bin/python test_pipeline.py       # source routing in build_report
+./.venv/bin/python test_pipeline.py       # build_report: numbers + context → report
 ./.venv/bin/python test_agent.py          # job-loop resilience
 ```
 
@@ -109,13 +112,13 @@ short:
 | `app.py` | Streamlit UI |
 | `agent.py` | job queue + CLI (orchestration) |
 | `pipeline.py` | `build_report()` — assembles a report from the sources |
-| `research.py` | the Google deep-research + LLM extraction calls |
+| `research.py` | the model calls: `gather_context` (grounded search) + `write_narrative` (writer) |
 | `data_source.py` | yfinance structured financials + name→ticker |
-| `financials.py` | pure report-dict logic (merge, completeness, forecast filter) |
+| `financials.py` | pure report-dict logic (completeness gate) |
 | `schemas.py` | the structured report data contracts |
 | `report.py` | writes the `.md` + `.json` |
 | `charts.py` | ECharts chart builders |
 | `jobs.py` | job persistence (`JobStore`) |
 | `i18n.py` | all user-facing text, per language |
 | `config.py` | language + prompts |
-| `model.py` | Gemini client + model names |
+| `model.py` | Gemini client + model name |

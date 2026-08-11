@@ -1,8 +1,8 @@
-"""Tests for pipeline.build_report — source routing. Run: python test_pipeline.py
+"""Tests for pipeline.build_report. Run: python test_pipeline.py
 
-Stubs the data-source and LLM calls so no network / API is used; verifies that
-numbers come from the data source (authoritative) with narrative from the LLM,
-and that a company with no ticker falls back to LLM number-extraction.
+Stubs the data-source and model calls so no network / API is used; verifies
+that numbers come from the data source (authoritative), the writer's structured
+narrative is used, and the gathered context + sources are carried through.
 """
 
 import pipeline
@@ -13,13 +13,22 @@ def _run(stubs):
     for k, v in stubs.items():
         setattr(pipeline, k, v)
     try:
-        return pipeline.build_report("Test Co", "research text")
+        return pipeline.build_report("Test Co")
     finally:
         for k, v in saved.items():
             setattr(pipeline, k, v)
 
 
-def test_yfinance_primary_numbers_win_narrative_kept():
+def test_numbers_from_data_source_narrative_from_writer():
+    seen = {}
+
+    def writer(company, numbers, context):
+        seen["numbers"] = numbers
+        seen["context"] = context
+        return {"summary": "S", "verdict": "V", "health": "good",
+                "currency_unit": "", "segments": [{"name": "X", "revenue": 1}],
+                "highlights": ["h"], "risks": ["r"]}
+
     data = _run({
         "resolve_ticker": lambda name: "TST",
         "fetch_financials": lambda tk: {
@@ -29,37 +38,42 @@ def test_yfinance_primary_numbers_win_narrative_kept():
             "balance_sheet": {"cash": 100.0},
             "cash_flow": {"operating": 60.0},
         },
-        "extract_narrative": lambda text: {
-            "summary": "S", "verdict": "V", "health": "good",
-            "currency_unit": "", "segments": [{"name": "X", "revenue": 1}],
-            "highlights": ["h"], "risks": ["r"],
-        },
+        "gather_context": lambda company: (
+            "## Business overview\n...", [{"title": "FPT", "uri": "http://fpt.com"}]),
+        "write_narrative": writer,
     })
     # numbers from the data source
     assert data["financials"][0]["revenue"] == 500.0
-    assert data["currency_unit"] == "USD billion"   # data source overrides narrative
-    # narrative from the LLM
+    assert data["currency_unit"] == "USD billion"     # data source overrides writer
+    # narrative from the writer
     assert data["summary"] == "S"
     assert data["health"] == "good"
     assert data["segments"] == [{"name": "X", "revenue": 1}]
+    # writer received the yfinance numbers + the gathered context
+    assert seen["numbers"]["financials"][0]["revenue"] == 500.0
+    assert seen["context"].startswith("## Business overview")
+    # context + sources carried through for display
+    assert data["context"].startswith("## Business overview")
+    assert data["sources"] == [{"title": "FPT", "uri": "http://fpt.com"}]
 
 
-def test_fallback_to_llm_extraction_when_no_ticker():
-    calls = {"extract": 0}
+def test_no_ticker_yields_no_numbers_but_still_gathers_and_writes():
+    calls = {"gather": 0, "write": 0}
 
-    def extract(text):
-        calls["extract"] += 1
-        return {"financials": [{"year": "2025", "revenue": 9.0, "net_income": 1.0}],
-                "margins": {}, "balance_sheet": {}, "cash_flow": {},
-                "summary": "F", "segments": []}
+    def writer(company, numbers, context):
+        calls["write"] += 1
+        assert numbers == {}          # no ticker -> no data-source numbers
+        return {"summary": "F", "verdict": "", "health": "mixed",
+                "currency_unit": "", "segments": [], "highlights": [], "risks": []}
 
     data = _run({
-        "resolve_ticker": lambda name: None,   # no ticker -> fallback path
-        "extract_financials": extract,
+        "resolve_ticker": lambda name: None,
+        "gather_context": lambda company: (calls.__setitem__("gather", 1) or "ctx", []),
+        "write_narrative": writer,
     })
-    assert calls["extract"] == 1                # LLM number-extraction used
+    assert calls["gather"] == 1 and calls["write"] == 1
     assert data["summary"] == "F"
-    assert data["financials"][0]["revenue"] == 9.0
+    assert not data.get("financials")  # no numbers without a ticker
 
 
 if __name__ == "__main__":

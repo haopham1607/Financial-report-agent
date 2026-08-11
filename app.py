@@ -10,7 +10,7 @@ import os
 import streamlit as st
 
 import charts
-from agent import clear_finished_jobs, refresh_jobs, start_research_jobs
+from agent import clear_finished_jobs, refresh_jobs, queue_jobs
 from i18n import get_labels
 from report import REPORTS_DIR
 
@@ -80,7 +80,9 @@ def render_report(data: dict) -> None:
     ch1, ch2 = st.columns(2)
     with ch1:
         if segments:
-            charts.render_echart(charts.segment_chart(segments, lab), height=340)
+            charts.render_echart(
+                charts.segment_chart(segments, lab, data.get("segment_period", "")),
+                height=340)
     with ch2:
         if net_m is not None:
             charts.render_echart(charts.profit_donut(net_m, lab), height=340)
@@ -143,10 +145,16 @@ def render_report(data: dict) -> None:
             ]
             st.table(rows)
 
-    research_text = data.get("research_text")
-    if research_text:
+    context = data.get("context")
+    if context:
         with st.expander(lab["full_research"]):
-            st.markdown(research_text)
+            st.markdown(context)
+
+    sources = data.get("sources") or []
+    if sources:
+        with st.expander(lab["sources"]):
+            for s in sources:
+                st.markdown(f"- [{s.get('title') or s.get('uri')}]({s.get('uri')})")
 
 
 # --- Start form ---
@@ -159,7 +167,7 @@ if submitted:
     if not companies:
         st.warning(L["enter_name"])
     else:
-        for job in start_research_jobs(companies):
+        for job in queue_jobs(companies):
             st.success(f"{L['started']} **{job.company}**")
         poll_jobs()
 

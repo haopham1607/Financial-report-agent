@@ -82,18 +82,28 @@ def trend_chart(financials, lab, unit):
     }
 
 
-def segment_chart(segments, lab):
-    """Donut: revenue by business segment."""
+def segment_chart(segments, lab, period=""):
+    """Donut: revenue by business segment.
+
+    `period` (e.g. "6 tháng đầu năm 2026") is shown as a subtitle so a breakdown
+    from an interim period is never mistaken for a full-year one.
+    """
+    title = {"text": lab["segments"], "textStyle": {"color": INK, "fontSize": 14}}
+    if period:
+        title["subtext"] = period
+        title["subtextStyle"] = {"color": MUTED, "fontSize": 12}
     return {
         "backgroundColor": SURFACE,
-        "title": {"text": lab["segments"], "textStyle": {"color": INK, "fontSize": 14}},
+        "title": title,
         "tooltip": {"trigger": "item", "formatter": "{b}: {c} ({d}%)"},
         "legend": {"bottom": 0, "textStyle": {"color": INK2}},
         "color": CATEGORICAL,
         "series": [{
             "type": "pie", "radius": ["40%", "68%"], "center": ["50%", "46%"],
             "avoidLabelOverlap": True,
-            "label": {"show": True, "formatter": "{b}\n{d}%", "color": INK},
+            # Name is already in the legend below; label shows only the % to
+            # avoid long segment names clustering/clipping on small slices.
+            "label": {"show": True, "formatter": "{d}%", "color": INK},
             "data": [{"value": s.get("revenue"), "name": s.get("name", "")}
                      for s in segments],
         }],

@@ -18,12 +18,15 @@ def _fmt(value, unknown: str) -> str:
     return str(value)
 
 
-def write_report(company: str, data: dict, research_text: str) -> str:
+def write_report(company: str, data: dict) -> str:
     """Write reports/{slug}_financial_{date}.md and a companion .json.
 
+    `data` carries the analysis text and its sources (from the pipeline).
     Returns the markdown path.
     """
     lab = get_labels()
+    context = data.get("context", "")
+    sources = data.get("sources") or []
     os.makedirs(REPORTS_DIR, exist_ok=True)
     slug = "_".join(company.lower().split())
     now = datetime.datetime.now()
@@ -36,8 +39,9 @@ def write_report(company: str, data: dict, research_text: str) -> str:
 
     # Companion JSON drives the charts and structured layout in the app.
     with open(base + ".json", "w") as fh:
+        # context and sources already live in `data` (set by the pipeline).
         json.dump(
-            {"company": company, "date": date, "research_text": research_text, **data},
+            {"company": company, "date": date, **data},
             fh,
             indent=2,
             ensure_ascii=False,
@@ -85,6 +89,21 @@ def write_report(company: str, data: dict, research_text: str) -> str:
     )
     lines.append("")
 
+    # Revenue by segment, as % share (mirrors the donut, so it is correct whether
+    # the writer gave absolute figures or shares). The period is stated in the
+    # heading so an interim breakdown is never read as a full year.
+    segments = [s for s in (data.get("segments") or [])
+                if s.get("revenue") is not None]
+    if segments:
+        period = data.get("segment_period") or ""
+        heading = lab["segments"] + (f" ({period})" if period else "")
+        lines += [f"## {heading}", ""]
+        total = sum(s["revenue"] for s in segments)
+        for s in segments:
+            share = f"{s['revenue'] / total * 100:.1f}%" if total else lab["unknown"]
+            lines.append(f"- {s.get('name', '')}: {share}")
+        lines.append("")
+
     for key in ("highlights", "risks"):
         lines += [f"## {lab[key]}", ""]
         items = data.get(key) or []
@@ -93,7 +112,12 @@ def write_report(company: str, data: dict, research_text: str) -> str:
         else:
             lines += [f"- {item}" for item in items] + [""]
 
-    lines += [f"## {lab['full_research']}", "", research_text, ""]
+    lines += [f"## {lab['full_research']}", "", context, ""]
+
+    if sources:
+        lines += [f"## {lab.get('sources', 'Sources')}", ""]
+        lines += [f"{i}. [{s.get('title', s.get('uri', ''))}]({s.get('uri', '')})"
+                  for i, s in enumerate(sources, 1)] + [""]
 
     with open(md_path, "w") as fh:
         fh.write("\n".join(lines))

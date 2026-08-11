@@ -60,5 +60,9 @@ class NarrativeReport(BaseModel):
     health: Literal["good", "mixed", "weak"]
     currency_unit: str
     segments: list[Segment]
+    # Period the segment figures cover, e.g. "Cả năm 2025" or "6 tháng đầu năm
+    # 2026". Any timeframe is allowed, but it must be stated (shown on the chart)
+    # so an interim breakdown is never mistaken for a full-year one. "" if no segments.
+    segment_period: str = ""
     highlights: list[str]
     risks: list[str]
