@@ -9,9 +9,10 @@ REPORT_LANGUAGE = "Vietnamese"
 # structure follows standard equity-research / financial-analysis reporting.
 # {company} is filled in; REPORT_LANGUAGE is concatenated.
 SEARCH_PROMPT = (
-    '''Search the web and gather the following about the company "{company}", \
-under these EXACT headings. Use actual reported information; clearly label any \
-forward-looking figure as a forecast. Be concise and factual.
+    '''Using ONLY the web search results provided below, compile the following \
+about the company "{company}", under these EXACT headings. Use only information \
+supported by the results; if the results do not cover a section, say so. Clearly \
+label any forward-looking figure as a forecast. Be concise and factual.
 
 ## Business overview
 What the company does, its main business lines / divisions, and market position.
@@ -89,3 +90,15 @@ Gathered qualitative context to use:
 
 '''
 )
+
+# Two web-search queries per company (filled with {company}); their combined
+# results feed the SEARCH_PROMPT synthesis. Kept here so coverage is tunable.
+SEARCH_QUERY_TEMPLATES = [
+    '{company} annual revenue by segment business overview latest fiscal year '
+    'financial results',
+    '{company} recent developments risks competitors outlook',
+]
+
+# Low-quality sources to exclude from search (user-upload / study sites that
+# publish unreliable figures). Curated; extend as needed.
+EXCLUDE_DOMAINS = ["studocu.com", "scribd.com", "coursehero.com"]

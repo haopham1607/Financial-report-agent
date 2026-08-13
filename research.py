@@ -14,9 +14,10 @@ stage 1 is grounded free text, stage 2 is schema-enforced with no tools.
 
 from google.genai import types
 
-from config import SEARCH_PROMPT, WRITER_PROMPT
+from config import SEARCH_PROMPT, WRITER_PROMPT, SEARCH_QUERY_TEMPLATES, EXCLUDE_DOMAINS
 from model import MODEL, client
 from schemas import NarrativeReport
+from web_search import search
 
 
 def _format_figures(numbers: dict) -> str:
@@ -43,27 +44,33 @@ def _format_figures(numbers: dict) -> str:
 
 
 def gather_context(company: str) -> tuple[str, list[dict]]:
-    """Grounded search: gather qualitative context in the fixed SEARCH_PROMPT
-    format. Returns (context text, cited web sources [{title, uri}]).
+    """Gather qualitative context WITHOUT Gemini grounding.
+
+    Runs the configured web-search queries through the Tavily tool, dedupes the
+    results by URL, then has a plain (no-tools) model call synthesize the fixed
+    SEARCH_PROMPT format from those results. Returns (context text, sources).
+    Returns ("", []) when the search yields nothing (missing key, error, or no
+    hits) so the pipeline degrades to numbers-only gracefully.
     """
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=SEARCH_PROMPT.format(company=company),
-        config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())]),
-    )
-    text = response.text or ""
-    sources = []
-    try:
-        chunks = response.candidates[0].grounding_metadata.grounding_chunks or []
-        for c in chunks:
-            web = getattr(c, "web", None)
-            uri = getattr(web, "uri", None) if web else None
-            if uri:
-                sources.append({"title": getattr(web, "title", "") or uri, "uri": uri})
-    except (AttributeError, IndexError, TypeError):
-        pass
-    return text, sources
+    results, seen = [], set()
+    for template in SEARCH_QUERY_TEMPLATES:
+        for r in search(template.format(company=company),
+                        exclude_domains=EXCLUDE_DOMAINS):
+            uri = r.get("uri")
+            if uri and uri not in seen:
+                seen.add(uri)
+                results.append(r)
+
+    if not results:
+        return "", []
+
+    sources = [{"title": r["title"], "uri": r["uri"]} for r in results]
+    blob = "\n\n".join(
+        f"[{r['title']}] {r['uri']}\n{r['content']}" for r in results)
+    prompt = (SEARCH_PROMPT.format(company=company)
+              + "\n\n---\nSearch results:\n\n" + blob)
+    response = client.models.generate_content(model=MODEL, contents=prompt)
+    return response.text or "", sources
 
 
 def write_narrative(company: str, numbers: dict, context: str) -> dict:
