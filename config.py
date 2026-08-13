@@ -11,9 +11,10 @@ REPORT_LANGUAGE = "Vietnamese"
 # concatenated.
 SEARCH_PROMPT = (
     '''Using ONLY the web search results provided below, compile the following \
-about the company "{company}", under these EXACT headings. Use only information \
-supported by the results; if the results do not cover a section, say so. Clearly \
-label any forward-looking figure as a forecast. Be concise and factual.
+about the company "{company}", under these section headings, keeping this order. \
+Use only information supported by the results; if the results do not cover a \
+section, say so. Clearly label any forward-looking figure as a forecast. Be \
+concise and factual.
 
 ## Business overview
 What the company does, its main business lines / divisions, and market position.
@@ -47,9 +48,11 @@ Key risks: competitive, regulatory, macroeconomic, and company-specific.
 ## Sources
 A numbered list of the sources used, as markdown links.
 
-Write everything in '''
+Write everything — including every section heading — in '''
     + REPORT_LANGUAGE
-    + '''.'''
+    + ''' (translate the section headings shown above into '''
+    + REPORT_LANGUAGE
+    + ''', keeping the same order and meaning).'''
 )
 
 # Writer prompt. A plain (no-tools, schema-enforced) call fuses the ACTUAL
