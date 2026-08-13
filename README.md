@@ -31,7 +31,7 @@ company name
                                     (deterministic)      balance sheet, cash flow)
      │                                              │
      ▼                                              │
- gather_context (grounded web search) ─► qualitative CONTEXT + sources
+ gather_context ─► Tavily web search ─► plain-LLM synthesis ─► CONTEXT + sources
      │  (business, segments, developments, outlook, competitors, risks)
      └───────────────────────────────┬──────────────┘
                                       ▼
@@ -43,15 +43,20 @@ company name
 ```
 
 **The core design principle:** the **numbers come from a structured data source
-(yfinance) — deterministic and authoritative.** A **grounded web search** gathers
-the qualitative context the numbers can't provide, and a **writer model** fuses
-the two into the report. So the story always matches the charts. Three roles:
+(yfinance) — deterministic and authoritative.** A **web search** (Tavily) gathers
+the qualitative context the numbers can't provide, a plain LLM call **synthesizes**
+it into a fixed format, and a **writer model** fuses that with the numbers. So the
+story always matches the charts. Three roles:
 
 | Stage | Tool | Owns |
 |-------|------|------|
 | Numbers | **yfinance** | every figure → the charts |
-| Context | **grounded search** (Google Search tool) | business, segments, developments, risks + sources |
+| Context | **Tavily web search** + plain-LLM synthesis | business, segments, developments, risks + sources |
 | Report | **writer model** | fuses numbers + context → verdict, summary, highlights, risks |
+
+Context retrieval is deliberately **decoupled** from the LLM (Tavily fetches, a
+plain Gemini call synthesizes) — it uses Tavily's own quota instead of the
+Gemini Search-grounding quota, and lets us steer/exclude sources.
 
 ## Setup
 
@@ -59,10 +64,15 @@ the two into the report. So the story always matches the charts. Three roles:
 cd Financial_report_agent
 python -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
-cp .env.example .env        # then edit .env and add your GEMINI_API_KEY
+cp .env.example .env        # then edit .env: add GEMINI_API_KEY and TAVILY_API_KEY
 ```
 
-`requirements.txt`: `google-genai`, `python-dotenv`, `streamlit`, `yfinance`.
+`requirements.txt`: `google-genai`, `python-dotenv`, `streamlit`, `yfinance`,
+`tavily-python`.
+
+Get a free Gemini key at [aistudio.google.com](https://aistudio.google.com) and
+a free Tavily key at [tavily.com](https://tavily.com). Without a Tavily key the
+app still runs, but reports build from the **numbers only** (no context/sources).
 
 ## Usage
 
@@ -88,8 +98,10 @@ Reports land in `reports/` as a `.json` (drives the dashboard) plus a `.md`
 | Where | Setting | Default |
 |-------|---------|---------|
 | `config.py` | `REPORT_LANGUAGE` | `"Vietnamese"` (set `"English"` to switch all output) |
-| `.env` | `GEMINI_API_KEY` | *(required)* |
-| `.env` | `RISK_AGENT_MODEL` | `gemini-3.6-flash` (search + writer + name→ticker) |
+| `.env` | `GEMINI_API_KEY` | *(required)* — name→ticker, context synthesis, writer |
+| `.env` | `TAVILY_API_KEY` | *(context)* — web search; without it, reports are numbers-only |
+| `.env` | `RISK_AGENT_MODEL` | `gemini-3.6-flash` (name→ticker + synthesis + writer) |
+| `config.py` | `SEARCH_QUERY_TEMPLATES` / `EXCLUDE_DOMAINS` | the 2 Tavily queries per company; domains barred from search |
 
 ## Tests
 
@@ -117,7 +129,8 @@ short:
 | `app.py` | Streamlit UI |
 | `agent.py` | job queue + CLI (orchestration) |
 | `pipeline.py` | `build_report()` — assembles a report from the sources |
-| `research.py` | the model calls: `gather_context` (grounded search) + `write_narrative` (writer) |
+| `research.py` | `gather_context` (Tavily search → LLM synthesis) + `write_narrative` (writer) |
+| `web_search.py` | Tavily web-search tool (isolated; `[]` on missing key / error) |
 | `data_source.py` | yfinance structured financials + name→ticker |
 | `financials.py` | pure report-dict logic (completeness gate) |
 | `schemas.py` | the structured report data contracts |

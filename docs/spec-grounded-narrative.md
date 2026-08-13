@@ -1,7 +1,14 @@
 # Grounded-Narrative Pipeline — Design
 
 **Date:** 2026-08-06
-**Status:** Implemented
+**Status:** Superseded (2026-08-13)
+
+> **Superseded:** the Google-Search-grounded `gather_context` this doc describes
+> was replaced by a **Tavily web-search tool + plain-LLM synthesis** to get off
+> the Gemini grounding quota and gain source control. See
+> [specs/2026-08-13-web-search-tool-design.md](superpowers/specs/2026-08-13-web-search-tool-design.md).
+> `gather_context` keeps the same `(text, sources)` contract; the rest below is
+> retained as the historical rationale for splitting gather from write.
 
 > This doc records the design and its rationale; the sections below have been
 > reconciled with the shipped code. As-built naming: the two model calls are
