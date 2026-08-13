@@ -10,7 +10,7 @@ import os
 import streamlit as st
 
 import charts
-from agent import clear_finished_jobs, refresh_jobs, queue_jobs
+from agent import clear_finished_jobs, refresh_jobs, queue_jobs, store
 from i18n import get_labels
 from report import REPORTS_DIR
 
@@ -29,8 +29,18 @@ STATE_TEXT = {
 
 
 def poll_jobs() -> None:
-    """Poll running jobs once and remember the result for this session."""
+    """Build pending jobs (blocking) and remember the result for this session.
+    Triggered ONLY by an explicit Refresh — never on page load or Start, so the
+    slow build never blocks the initial render of the tabs and their buttons."""
     st.session_state.jobs, st.session_state.events = refresh_jobs()
+
+
+def show_jobs() -> None:
+    """Load the job list for display WITHOUT building — instant, non-blocking.
+    Used on page load and right after Start so the UI (and its buttons) render
+    immediately; the actual build runs later when the user clicks Refresh."""
+    st.session_state.jobs = store.load()
+    st.session_state.setdefault("events", [])
 
 
 def render_report(data: dict) -> None:
@@ -169,11 +179,14 @@ if submitted:
     else:
         for job in queue_jobs(companies):
             st.success(f"{L['started']} **{job.company}**")
-        poll_jobs()
+        # Queue only — do NOT build here. Building is slow and would block before
+        # the tabs render, making their buttons vanish. Refresh runs the build.
+        show_jobs()
 
-# Poll once per browser session (page load); after that only Refresh re-polls.
+# Load the job list once per browser session (page load). Building happens only
+# on an explicit Refresh, so opening the app never blocks on pending work.
 if "jobs" not in st.session_state:
-    poll_jobs()
+    show_jobs()
 
 for msg in st.session_state.events:
     st.info(msg)
