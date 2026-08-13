@@ -58,6 +58,28 @@ def test_no_key_returns_empty(monkeypatch=None):
     assert web_search.search("anything") == []
 
 
+def test_no_key_is_logged_not_silent():
+    import logging
+
+    records = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    web_search._client = lambda: None
+    logger = logging.getLogger("web_search")
+    handler = _Capture()
+    logger.addHandler(handler)
+    try:
+        assert web_search.search("anything") == []
+    finally:
+        logger.removeHandler(handler)
+
+    assert len(records) == 1
+    assert records[0].levelno == logging.WARNING
+
+
 def test_tavily_error_returns_empty():
     class _Boom:
         def search(self, **kwargs):

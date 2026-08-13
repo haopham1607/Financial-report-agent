@@ -8,6 +8,13 @@ degrades to an empty list, so callers never need a try/except.
 import logging
 import os
 
+from dotenv import load_dotenv
+
+# Load .env from this file's directory so the tool is self-contained: it works
+# standalone (scripts, tests, any caller) regardless of whether model.py was
+# imported first. load_dotenv does not override variables already in the env.
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
 log = logging.getLogger(__name__)
 
 
@@ -29,6 +36,7 @@ def search(query: str, max_results: int = 5,
     """Web search → [{title, uri, content}]; [] on missing key or any error."""
     client = _client()
     if client is None:
+        log.warning("TAVILY_API_KEY not set; web search returns no results")
         return []
     try:
         resp = client.search(
