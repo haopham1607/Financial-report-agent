@@ -93,13 +93,18 @@ Reports land in `reports/` as a `.json` (drives the dashboard) plus a `.md`
 
 ## Tests
 
-Plain-assert test files, no framework needed:
+Plain-assert test files (no framework needed), living in the `tests/` package.
+Run from the project root with `-m` so they can import the app's modules:
 
 ```bash
-./.venv/bin/python test_financials.py     # pure report-dict logic
-./.venv/bin/python test_data_source.py    # yfinance adapter
-./.venv/bin/python test_pipeline.py       # build_report: numbers + context → report
-./.venv/bin/python test_agent.py          # job-loop resilience
+./.venv/bin/python -m tests                    # the whole suite
+./.venv/bin/python -m tests.test_financials    # pure report-dict logic
+./.venv/bin/python -m tests.test_data_source   # yfinance adapter
+./.venv/bin/python -m tests.test_pipeline      # build_report: numbers + context → report
+./.venv/bin/python -m tests.test_agent         # job-loop resilience
+./.venv/bin/python -m tests.test_report        # markdown report (incl. segment period)
+./.venv/bin/python -m tests.test_web_search    # Tavily search wrapper
+./.venv/bin/python -m tests.test_research      # gather_context (search + synthesis)
 ```
 
 ## Project layout
