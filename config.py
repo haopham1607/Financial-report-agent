@@ -78,7 +78,12 @@ financially healthy.
 5. "segments": revenue by business segment, each as \
 {{"name": "...", "revenue": number}}, taken from the context. Use whatever the \
 most recent available period is — any timeframe is fine (full year, half-year, \
-etc.). Empty list if the context has no segment breakdown. Plain numbers only.
+etc.). Include PARTIAL breakdowns: list every segment the context gives a figure \
+(revenue or % share) for, even if only some segments are disclosed. If those \
+segments clearly cover less than the whole company, append ONE final segment \
+named "Khác" (English: "Other") whose value is the remaining share, so the pieces \
+sum to the whole. Return an empty list ONLY if the context gives no segment \
+figures at all. Plain numbers only.
 6. "segment_period": the period the segment figures in 5 cover, stated plainly \
 (e.g. "Cả năm 2025" or "6 tháng đầu năm 2026"). This is shown on the chart so the \
 breakdown is never mistaken for a full year. Empty string if "segments" is empty.
