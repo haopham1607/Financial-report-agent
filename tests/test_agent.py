@@ -95,6 +95,28 @@ def test_failure_does_not_roll_back_earlier_success():
     assert fake.saves >= 1           # A's completion was saved before B ran
 
 
+def test_transient_errors_get_friendly_messages():
+    # A 429/503 must be shown as an accurate, non-scary reason — not Google's raw
+    # "you exceeded your quota, check your billing" text (which is misleading for
+    # a transient per-minute rate limit or a busy service).
+    from i18n import get_labels
+    lab = get_labels()
+    jobs = [Job.new("A"), Job.new("B")]
+
+    def build(company):
+        if company == "A":
+            raise RuntimeError(
+                "429 RESOURCE_EXHAUSTED. You exceeded your current quota, "
+                "please check your plan and billing details.")
+        raise RuntimeError("503 UNAVAILABLE. The model is experiencing high demand.")
+
+    _fake, _result, events = _run(jobs, build)
+    text = " ".join(events)
+    assert lab["err_rate_limit"] in text   # 429 -> friendly rate-limit reason
+    assert lab["err_busy"] in text          # 503 -> friendly busy reason
+    assert "billing" not in text            # the raw misleading text is gone
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

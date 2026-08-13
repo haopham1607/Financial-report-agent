@@ -57,6 +57,21 @@ def clear_finished_jobs() -> list[Job]:
     return remaining
 
 
+def _error_reason(error: Exception, lab: dict) -> str:
+    """A short, accurate reason for a build failure.
+
+    Transient API errors (429 per-minute rate limit, 503 high demand) get a plain
+    explanation instead of Google's raw text — whose "you exceeded your quota,
+    check your plan and billing" wording wrongly reads as a hard quota/key problem.
+    """
+    s = str(error)
+    if "429" in s or "RESOURCE_EXHAUSTED" in s:
+        return lab["err_rate_limit"]
+    if "503" in s or "UNAVAILABLE" in s:
+        return lab["err_busy"]
+    return s[:120]
+
+
 def refresh_jobs() -> tuple[list[Job], list[str]]:
     """Build every pending job and write its report.
 
@@ -82,7 +97,7 @@ def refresh_jobs() -> tuple[list[Job], list[str]]:
             # next call retries it, and move on.
             events.append(
                 f"[{job.company}] "
-                + lab["ev_process_retry"].format(error=str(e)[:120]))
+                + lab["ev_process_retry"].format(error=_error_reason(e, lab)))
             continue
 
         # Only fail (so the user can re-run) if nothing usable came through.
