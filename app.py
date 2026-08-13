@@ -30,15 +30,15 @@ STATE_TEXT = {
 
 def poll_jobs() -> None:
     """Build pending jobs (blocking) and remember the result for this session.
-    Triggered ONLY by an explicit Refresh — never on page load or Start, so the
-    slow build never blocks the initial render of the tabs and their buttons."""
+    Runs only at the very END of the script (see the `build_now` block), after
+    the tabs and their buttons have rendered, so the slow build never hides them."""
     st.session_state.jobs, st.session_state.events = refresh_jobs()
 
 
 def show_jobs() -> None:
     """Load the job list for display WITHOUT building — instant, non-blocking.
-    Used on page load and right after Start so the UI (and its buttons) render
-    immediately; the actual build runs later when the user clicks Refresh."""
+    Renders the current queue (incl. freshly-queued running jobs) before the
+    build runs, so the UI and its buttons appear immediately."""
     st.session_state.jobs = store.load()
     st.session_state.setdefault("events", [])
 
@@ -179,14 +179,18 @@ if submitted:
     else:
         for job in queue_jobs(companies):
             st.success(f"{L['started']} **{job.company}**")
-        # Queue only — do NOT build here. Building is slow and would block before
-        # the tabs render, making their buttons vanish. Refresh runs the build.
+        # Show the queued (running) jobs now, and flag the build to run at the END
+        # of the script — after the tabs + buttons have rendered — so Start builds
+        # immediately WITHOUT the slow work hiding the buttons mid-render.
         show_jobs()
+        st.session_state.build_now = True
 
-# Load the job list once per browser session (page load). Building happens only
-# on an explicit Refresh, so opening the app never blocks on pending work.
+# Load the job list once per browser session (page load). If anything is pending,
+# flag the build to run at the end (after the UI renders) — same as Start.
 if "jobs" not in st.session_state:
     show_jobs()
+    if any(job.state == "running" for job in st.session_state.jobs):
+        st.session_state.build_now = True
 
 for msg in st.session_state.events:
     st.info(msg)
@@ -198,14 +202,16 @@ with jobs_tab:
     col_refresh, col_clear = st.columns(2)
     with col_refresh:
         if st.button(L["refresh"], use_container_width=True):
-            poll_jobs()
+            # Defer the build to the end of the script (see build_now) so this
+            # button's build never hides the widgets rendered after it.
+            st.session_state.build_now = True
             st.rerun()
     with col_clear:
         # Clears done/failed jobs; running jobs stay so their research isn't
-        # orphaned. Reports are untouched — this only clears history.
+        # orphaned. Reports are untouched — this only clears history (no build).
         if st.button(L["clear_finished"], use_container_width=True):
             clear_finished_jobs()
-            poll_jobs()
+            show_jobs()
             st.rerun()
 
     jobs = st.session_state.jobs
@@ -274,3 +280,14 @@ with reports_tab:
             render_report(data)
         else:
             st.markdown(content)
+
+
+# --- Deferred build (runs LAST) ---
+# Every widget above — the tabs, their buttons, the reports — has already
+# rendered by this point, so running the slow build here never blanks them out.
+# Set by Start, Refresh, or a first page load with pending jobs. A spinner shows
+# while it builds; then we rerun to display the finished reports.
+if st.session_state.pop("build_now", False):
+    with st.spinner(L["building"]):
+        poll_jobs()
+    st.rerun()
