@@ -44,7 +44,7 @@ def _format_figures(numbers: dict) -> str:
     return "\n".join(lines) if lines else "  (no figures available)"
 
 
-def gather_context(company: str) -> tuple[str, list[dict]]:
+def gather_context(company: str, ticker: str = "") -> tuple[str, list[dict]]:
     """Gather qualitative context WITHOUT Gemini grounding.
 
     Runs the configured web-search queries through the Tavily tool, dedupes the
@@ -52,10 +52,15 @@ def gather_context(company: str) -> tuple[str, list[dict]]:
     SEARCH_PROMPT format from those results. Returns (context text, sources).
     Returns ("", []) when the search yields nothing (missing key, error, or no
     hits) so the pipeline degrades to numbers-only gracefully.
+
+    `ticker` (the resolved symbol, e.g. "CMG.VN") is folded into the search
+    subject so the context is about the SAME company the numbers came from —
+    without it, an ambiguous name ("CMC") pulls in unrelated same-named firms.
     """
+    subject = f"{company} {ticker}".strip()
     results, seen = [], set()
     for template in SEARCH_QUERY_TEMPLATES:
-        for r in search(template.format(company=company),
+        for r in search(template.format(company=subject),
                         exclude_domains=EXCLUDE_DOMAINS):
             uri = r.get("uri")
             if uri and uri not in seen:

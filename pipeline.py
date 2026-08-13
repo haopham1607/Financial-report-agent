@@ -21,7 +21,9 @@ def build_report(company: str) -> dict:
     ticker = resolve_ticker(company)
     numbers = fetch_financials(ticker) if ticker else {}
 
-    context, sources = gather_context(company)
+    # Pass the resolved ticker so the web search targets the same company as the
+    # numbers (an ambiguous name alone can pull in unrelated same-named firms).
+    context, sources = gather_context(company, ticker or "")
     data = write_narrative(company, numbers, context)
     data.update(numbers)  # data source owns financials / margins / bs / cf / unit
     data["context"] = context

@@ -55,6 +55,17 @@ def test_runs_one_search_per_template_with_exclude_domains():
         assert "FPT" in c["query"]
 
 
+def test_ticker_is_folded_into_every_query():
+    # The resolved ticker anchors the search to the same company as the numbers,
+    # so an ambiguous name doesn't pull in unrelated same-named firms.
+    calls, _ = _install({"": []})
+    research.gather_context("CMC", "CMG.VN")
+    assert len(calls) == len(config.SEARCH_QUERY_TEMPLATES)
+    for c in calls:
+        assert "CMG.VN" in c["query"]
+        assert "CMC" in c["query"]
+
+
 def test_dedupes_results_by_uri_across_queries():
     dup = {"title": "Dup", "uri": "https://a.com", "content": "x"}
     only = {"title": "Only", "uri": "https://b.com", "content": "y"}

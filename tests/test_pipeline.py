@@ -38,7 +38,7 @@ def test_numbers_from_data_source_narrative_from_writer():
             "balance_sheet": {"cash": 100.0},
             "cash_flow": {"operating": 60.0},
         },
-        "gather_context": lambda company: (
+        "gather_context": lambda company, ticker="": (
             "## Business overview\n...", [{"title": "FPT", "uri": "http://fpt.com"}]),
         "write_narrative": writer,
     })
@@ -68,7 +68,7 @@ def test_no_ticker_yields_no_numbers_but_still_gathers_and_writes():
 
     data = _run({
         "resolve_ticker": lambda name: None,
-        "gather_context": lambda company: (calls.__setitem__("gather", 1) or "ctx", []),
+        "gather_context": lambda company, ticker="": (calls.__setitem__("gather", 1) or "ctx", []),
         "write_narrative": writer,
     })
     assert calls["gather"] == 1 and calls["write"] == 1
