@@ -14,7 +14,7 @@ Module layout:
     financials.py   pure report-dict logic (completeness gate, forecast filter)
     jobs.py         Job dataclass + JobStore (persistence)
     data_source.py  yfinance structured financials + name->ticker
-    research.py     gather_context (grounded search) + write_narrative (writer)
+    research.py     gather_context (web search + synthesis) + write_narrative (writer)
     pipeline.py     build_report() — assembles a report from the sources
     report.py       markdown + JSON report writer
     charts.py       ECharts builders + palette

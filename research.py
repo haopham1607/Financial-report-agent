@@ -1,15 +1,16 @@
 """The Google model calls: gather qualitative context, then write the report.
 
 Two distinct stages:
-  1. gather_context — a Google-Search-grounded call that gathers qualitative
-     information in a fixed format (business, segments, developments, outlook,
-     competitive position, risks) plus cited sources. It only finds information.
+  1. gather_context — searches the web via Tavily and synthesizes results with
+     a plain model call to gather qualitative information in a fixed format
+     (business, segments, developments, outlook, competitive position, risks)
+     plus cited sources. It only finds information.
   2. write_narrative — a plain, schema-enforced call that fuses the ACTUAL
      numbers (from the yfinance data layer) with that context into the
      structured financial-health report.
 
-They are separate because grounding cannot be combined with a response schema:
-stage 1 is grounded free text, stage 2 is schema-enforced with no tools.
+They are separate to isolate concerns: stage 1 gathers and synthesizes context,
+stage 2 enforces the report schema with no tools.
 """
 
 from google.genai import types

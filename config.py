@@ -4,10 +4,11 @@
 # report headings, chart labels). Set to "English" to switch everything back.
 REPORT_LANGUAGE = "Vietnamese"
 
-# Search-gather prompt. A Google-Search-grounded call fills this FIXED format
-# for every company — the qualitative context the numbers can't provide. The
-# structure follows standard equity-research / financial-analysis reporting.
-# {company} is filled in; REPORT_LANGUAGE is concatenated.
+# Search-gather prompt. A plain synthesis call fills this FIXED format from
+# web-search results for every company — the qualitative context the numbers
+# can't provide. The structure follows standard equity-research /
+# financial-analysis reporting. {company} is filled in; REPORT_LANGUAGE is
+# concatenated.
 SEARCH_PROMPT = (
     '''Using ONLY the web search results provided below, compile the following \
 about the company "{company}", under these EXACT headings. Use only information \
