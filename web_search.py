@@ -5,7 +5,10 @@ Tavily directly (swap the provider by changing only this file). Every failure
 degrades to an empty list, so callers never need a try/except.
 """
 
+import logging
 import os
+
+log = logging.getLogger(__name__)
 
 
 def _client():
@@ -34,7 +37,11 @@ def search(query: str, max_results: int = 5,
             search_depth="advanced",
             exclude_domains=exclude_domains or [],
         )
-    except Exception:
+    except Exception as e:
+        # Degrade to empty, but leave a trace — otherwise a Tavily quota/auth
+        # failure is indistinguishable from "genuinely no results" when a report
+        # comes back with no context.
+        log.warning("Tavily search failed for %r: %s", query, e)
         return []
     results = resp.get("results", []) if isinstance(resp, dict) else []
     out = []

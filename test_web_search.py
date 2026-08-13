@@ -66,6 +66,33 @@ def test_tavily_error_returns_empty():
     assert web_search.search("q") == []
 
 
+def test_tavily_error_is_logged_as_warning():
+    import logging
+
+    records = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    class _Boom:
+        def search(self, **kwargs):
+            raise RuntimeError("network down")
+
+    _use(_Boom())
+    logger = logging.getLogger("web_search")
+    handler = _Capture()
+    logger.addHandler(handler)
+    try:
+        assert web_search.search("acme financials") == []
+    finally:
+        logger.removeHandler(handler)
+
+    assert len(records) == 1
+    assert records[0].levelno == logging.WARNING
+    assert "network down" in records[0].getMessage()
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0
