@@ -31,32 +31,45 @@ company name
                                     (deterministic)      balance sheet, cash flow)
      │                                              │
      ▼                                              │
- gather_context ─► Tavily web search ─► plain-LLM synthesis ─► CONTEXT + sources
-     │  (business, segments, developments, outlook, competitors, risks)
-     └───────────────────────────────┬──────────────┘
-                                      ▼
-                     write_narrative (LLM writer)
-                       fuses NUMBERS + CONTEXT ─► structured report
-                                      │
-                                      ▼
-                     report .json / .md ─► Streamlit dashboard
 ```
 
-**The core design principle:** the **numbers come from a structured data source
-(yfinance) — deterministic and authoritative.** A **web search** (Tavily) gathers
-the qualitative context the numbers can't provide, a plain LLM call **synthesizes**
-it into a fixed format, and a **writer model** fuses that with the numbers. So the
-story always matches the charts. Three roles:
+It is a genuine **tool-calling agent**: the model is given four tools and a goal,
+and *it* decides what to call and when it has enough to finish.
 
-| Stage | Tool | Owns |
-|-------|------|------|
-| Numbers | **yfinance** | every figure → the charts |
-| Context | **Tavily web search** + plain-LLM synthesis | business, segments, developments, risks + sources |
-| Report | **writer model** | fuses numbers + context → verdict, summary, highlights, risks |
+```
+company name
+     │
+     ▼
+  ┌──────────────── the agent loop (agent_loop.py) ────────────────┐
+  │  model picks a tool ──► code runs it ──► result fed back ──►   │
+  │  repeat (max 8 steps) until the model calls submit_report      │
+  │                                                                │
+  │  tools:  resolve_ticker  ("Vinamilk" → "VNM.VN")               │
+  │          fetch_financials (yfinance → the authoritative NUMBERS)│
+  │          web_search       (Tavily → context + sources)         │
+  │          submit_report    (the finished report; ends the loop) │
+  └────────────────────────────────┬───────────────────────────────┘
+                                   ▼
+        code stamps the yfinance NUMBERS in last (authoritative)
+                                   │
+                                   ▼
+                report .json / .md ─► Streamlit dashboard
+```
 
-Context retrieval is deliberately **decoupled** from the LLM (Tavily fetches, a
-plain Gemini call synthesizes) — it uses Tavily's own quota instead of the
-Gemini Search-grounding quota, and lets us steer/exclude sources.
+**The core design principle:** the agent is free to decide *how* to research, but
+**the numbers are not up to it.** Every figure comes from the `fetch_financials`
+tool (yfinance) and is stamped into the report by code **after** the agent
+finishes — so the model can search, re-search, and self-correct, yet the story
+always matches the charts.
+
+| Stage | Owner | Owns |
+|-------|-------|------|
+| Numbers | **yfinance** (via the `fetch_financials` tool, stamped by code) | every figure → the charts |
+| Research | **the agent** (`web_search` → Tavily) | which queries to run, when to search again |
+| Report | **the agent** (`submit_report`) | verdict, summary, segments, highlights, risks |
+
+Retrieval uses **Tavily** rather than Gemini's Search grounding, so it draws on
+Tavily's own quota and lets us steer/exclude sources.
 
 ## Setup
 
@@ -98,10 +111,12 @@ Reports land in `reports/` as a `.json` (drives the dashboard) plus a `.md`
 | Where | Setting | Default |
 |-------|---------|---------|
 | `config.py` | `REPORT_LANGUAGE` | `"Vietnamese"` (set `"English"` to switch all output) |
-| `.env` | `GEMINI_API_KEY` | *(required)* — name→ticker, context synthesis, writer |
-| `.env` | `TAVILY_API_KEY` | *(context)* — web search; without it, reports are numbers-only |
-| `.env` | `RISK_AGENT_MODEL` | `gemini-3.6-flash` (name→ticker + synthesis + writer) |
-| `config.py` | `SEARCH_QUERY_TEMPLATES` / `EXCLUDE_DOMAINS` | the 2 Tavily queries per company; domains barred from search |
+| `.env` | `GEMINI_API_KEY` | *(required)* — the model that drives the agent loop |
+| `.env` | `TAVILY_API_KEY` | *(context)* — the `web_search` tool; without it, reports are numbers-only |
+| `.env` | `RISK_AGENT_MODEL` | `gemini-3.6-flash` (the agent's model) |
+| `config.py` | `AGENT_PROMPT` | the agent's goal + how to use its tools |
+| `config.py` | `EXCLUDE_DOMAINS` | domains barred from `web_search` |
+| `agent_loop.py` | `MAX_STEPS` | `8` — how many turns the agent gets before it must finish |
 
 ## Tests
 
@@ -116,7 +131,7 @@ Run from the project root with `-m` so they can import the app's modules:
 ./.venv/bin/python -m tests.test_agent         # job-loop resilience
 ./.venv/bin/python -m tests.test_report        # markdown report (incl. segment period)
 ./.venv/bin/python -m tests.test_web_search    # Tavily search wrapper
-./.venv/bin/python -m tests.test_research      # gather_context (search + synthesis)
+./.venv/bin/python -m tests.test_agent_loop    # the agent loop (tools, steps, assembly)
 ```
 
 ## Project layout
@@ -128,8 +143,8 @@ short:
 |------|------|
 | `app.py` | Streamlit UI |
 | `agent.py` | job queue + CLI (orchestration) |
-| `pipeline.py` | `build_report()` — assembles a report from the sources |
-| `research.py` | `gather_context` (Tavily search → LLM synthesis) + `write_narrative` (writer) |
+| `pipeline.py` | `build_report()` — thin wrapper over the agent loop |
+| `agent_loop.py` | **the agent**: tool schemas, the loop, and report assembly |
 | `web_search.py` | Tavily web-search tool (isolated; `[]` on missing key / error) |
 | `data_source.py` | yfinance structured financials + name→ticker |
 | `financials.py` | pure report-dict logic (completeness gate) |

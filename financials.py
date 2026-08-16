@@ -31,10 +31,16 @@ def missing_critical_fields(data: dict) -> list[str]:
     The dashboard's headline is revenue for the most recent fiscal year; when it
     is missing (e.g. the company isn't in the data source) the report is written
     but flagged incomplete.
+
+    A blank summary means the agent finished without submitting a report (it hit
+    its step limit), so the numbers are there but there is no assessment — that
+    is flagged too, rather than passing as a finished report.
     """
     missing = []
     financials = data.get("financials") or []
     latest = financials[-1] if financials else {}
     if latest.get("revenue") is None:
         missing.append("revenue")
+    if not (data.get("summary") or "").strip():
+        missing.append("narrative")
     return missing

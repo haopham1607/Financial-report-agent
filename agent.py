@@ -15,7 +15,7 @@ Module layout:
     jobs.py         Job dataclass + JobStore (persistence)
     data_source.py  yfinance structured financials + name->ticker
     agent_loop.py   tool-calling loop (resolve_ticker, fetch_financials, web_search, submit_report)
-    web_search.py   grounded search against Exa API
+    web_search.py   the web-search tool (Tavily)
     pipeline.py     build_report() — delegates to agent_loop.run_agent
     report.py       markdown + JSON report writer
     charts.py       ECharts builders + palette

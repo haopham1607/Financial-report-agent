@@ -42,20 +42,24 @@ python agent.py "Vinamilk"  ──►  queue_jobs()  ──►  Job saved (runni
 python agent.py status  ──►  refresh_jobs()  ──►  for each pending job:
      (or the app's Refresh)                        build_report(company)
 
-     build_report(company):
-        resolve_ticker("Vinamilk")  → "VNM.VN"                 [tiny LLM call]
-        fetch_financials("VNM.VN")  → NUMBERS                  [yfinance, pure code]
-             revenue, net income, margins, balance sheet, cash flow
-        gather_context("Vinamilk")  → CONTEXT + sources        [Tavily search + LLM synthesis]
-             a fixed 8-section format (business, segments, developments,
-             outlook, competitive position, growth drivers, risks, sources)
-        write_narrative(numbers, context) → summary, verdict,  [LLM writer, schema]
-             health, highlights, risks, segments
-        data = narrative + NUMBERS + context + sources
+     build_report(company) → run_agent(company):        [the agent loop]
+
+        repeat up to MAX_STEPS (8):
+            ask the model what to do next (it sees the 4 tools)
+            run the tool(s) it chose, feed the result back:
+               resolve_ticker(name)   → "VNM.VN"        [tiny LLM call]
+               fetch_financials(tk)   → NUMBERS         [yfinance, pure code]
+               web_search(query)      → results + sources  [Tavily]
+               submit_report(...)     → ends the loop
+        (the model decides the order, how many searches, and when to stop;
+         it can re-resolve/re-search if something looks wrong)
+
+        data = the agent's narrative + context + sources
+        data.update(NUMBERS)   ← code stamps the yfinance figures LAST
 
         → has_usable_financials? — no → job "failed"
         → write_report()  → reports/{company}.json + .md
-        → job "done"
+        → job "done"  (+ "incomplete" note if revenue or the narrative is missing)
 
 
                                    ┌────────────── phase 3: RENDER ───────────────┐
@@ -65,24 +69,33 @@ Streamlit app  ──►  render_report(json)  ──►  KPI tiles + verdict ba
 ```
 
 ### Why a job queue (async)
-The work is not instant (a web search + a synthesis + a writer call take seconds), and
+The work is not instant (the agent loop takes several model calls + searches), and
 the app is batch-oriented (several companies at once). So it stays a **job
 queue**: `start` records jobs instantly; `refresh` builds the pending ones and
 writes their reports. State lives in `jobs.json`, so jobs persist between runs
 and a failure is retried. Each job is handled independently — one job's error
 (e.g. a rate limit) leaves it `running` to retry without aborting the batch.
 
-### Retrieval, synthesis, and the writer — separated steps
-Context gathering is **decoupled from the LLM** and kept separate from the writer:
-- `gather_context` — runs two **Tavily** web searches (`web_search.search`),
-  dedupes the hits by URL, then a **plain** (no-tools) Gemini call synthesizes them
-  into the fixed 8-section format → free text + cited sources.
-- `write_narrative` — a **schema-enforced** call (no tools) that fuses that
-  context with the authoritative numbers into guaranteed-valid structured output.
+### Agent, not workflow — and the guardrails that keep it reliable
+The build is a **tool-calling agent loop**, not a fixed sequence: the model is
+given the four tools and the goal (`AGENT_PROMPT`) and decides what to call, how
+many times to search, and when it has enough. That buys autonomy — it can notice
+an ambiguous name and re-resolve, or search again when the context is thin — at
+the cost of determinism. Four guardrails keep it dependable:
 
-Decoupling retrieval (Tavily) from generation means context gathering uses
-**Tavily's** quota — not the Gemini Search-grounding quota — and lets us steer and
-exclude sources. The search freely gathers; the writer fuses with the numbers.
+- **Numbers are stamped by code, last.** `_assemble` never takes a figure from the
+  model; `report.update(numbers)` writes the yfinance values over anything the
+  agent said, so a hallucinated number cannot reach the charts.
+- **`MAX_STEPS = 8`** bounds the loop, so it can never run away.
+- **Output is coerced.** The model's `submit_report` args are defensively
+  normalised (missing/garbage fields → sane defaults), so bad output degrades
+  instead of crashing the report writer.
+- **The completeness gate.** If the agent hits its step limit without submitting,
+  the report has numbers but no narrative — `missing_critical_fields` flags
+  `"narrative"` and the job reports "incomplete" rather than silent success.
+
+Retrieval uses **Tavily** (`web_search.search`), not Gemini Search grounding, so
+it draws on Tavily's own quota and lets us steer and exclude sources.
 
 ---
 
@@ -113,25 +126,27 @@ function: `search(query, max_results, exclude_domains)` → `[{title, uri, conte
 returning `[]` on a missing key or any error. Self-contained (loads `.env`, logs a
 warning when the key is missing); swapping providers touches only this file.
 
-**`research.py`** — **context gathering + the writer.**
-- `gather_context(company)` — runs the two `SEARCH_QUERY_TEMPLATES` through
-  `web_search.search` (passing `EXCLUDE_DOMAINS`), dedupes hits by URL, then a
-  plain Gemini call synthesizes the fixed 8-section format (business, segments,
-  developments, outlook, competitors, risks) → text + cited sources. Returns
-  `("", [])` if the search yields nothing.
-- `write_narrative(company, numbers, context)` — the **writer**: a plain,
-  schema-enforced call that fuses the numbers (source of truth) with the context
-  into the structured report fields (incl. `segments` + `segment_period`).
+**`agent_loop.py`** — **the agent.** Three parts:
+- **The tool schemas** — Gemini `FunctionDeclaration`s for `resolve_ticker`,
+  `fetch_financials`, `web_search`, and `submit_report` (the terminal tool). This
+  is the menu the model chooses from.
+- **`run_agent(company)`** — the loop: `_model_turn` asks the model what to do,
+  `_dispatch` runs the chosen tool (returning `{"error": ...}` instead of raising),
+  the result is appended as a function-response turn so the model sees it, and it
+  repeats up to `MAX_STEPS`. Along the way it keeps the latest non-empty
+  `fetch_financials` result and accumulates `web_search` sources (deduped by URL).
+- **`_assemble(final, numbers, sources)`** — builds the report dict: the agent's
+  narrative (defensively coerced), then `context`/`sources`, then
+  `report.update(numbers)` **last** so the yfinance figures are authoritative.
 
 **`financials.py`** — **pure logic over the report dict** (no network/LLM/I/O):
 - `has_usable_financials(data)` — does the report have any real number worth rendering?
-- `missing_critical_fields(data)` — is revenue (latest year) missing? (drives the
-  "data incomplete" note).
+- `missing_critical_fields(data)` — is revenue (latest year) missing, or the
+  narrative blank (the agent never submitted)? Drives the "data incomplete" note.
 
-**`pipeline.py`** — **`build_report(company)`** — the report-building brain:
-`resolve_ticker → fetch_financials → gather_context → write_narrative → combine`.
-Returns the report dict (numbers + narrative + context + sources). Kept separate
-from the job queue so it is testable and reusable.
+**`pipeline.py`** — **`build_report(company)`** — a thin wrapper that runs
+`agent_loop.run_agent(company)`. Kept separate from the job queue so the queue
+depends on a stable `build_report(company) -> dict` contract.
 
 ### Orchestration & I/O
 
@@ -158,10 +173,9 @@ cash-flow), plus the palette and render helper.
 
 ### Support
 
-**`config.py`** — `REPORT_LANGUAGE`; the two prompts `SEARCH_PROMPT` (the fixed
-synthesis format; section headings follow `REPORT_LANGUAGE`) and `WRITER_PROMPT`
-(fuse numbers + context → report); and the search config `SEARCH_QUERY_TEMPLATES`
-(2 queries per company) + `EXCLUDE_DOMAINS`.
+**`config.py`** — `REPORT_LANGUAGE`; `AGENT_PROMPT` (the agent's goal, how to use
+its tools, and the report fields it must submit — written in `REPORT_LANGUAGE`);
+and `EXCLUDE_DOMAINS` (domains barred from `web_search`).
 
 **`model.py`** — the shared Gemini `client` and the `MODEL` name (from env).
 
@@ -199,8 +213,9 @@ Everything downstream (writer, dashboard) consumes one dict:
 - **Numbers** (`financials`, `margins`, `balance_sheet`, `cash_flow`, `currency_unit`)
   → from **yfinance**.
 - **Narrative** (`summary`, `verdict`, `health`, `highlights`, `risks`, `segments`,
-  `segment_period`) → from the **writer**, using numbers + gathered context.
-- **`context` / `sources`** → from the **Tavily search + synthesis** step.
+  `segment_period`) → from the **agent's `submit_report` call** (coerced).
+- **`context` / `sources`** → the agent's `analysis` text, and the deduped
+  sources accumulated from its **`web_search`** calls.
 
 ---
 
@@ -208,15 +223,15 @@ Everything downstream (writer, dashboard) consumes one dict:
 
 - **yfinance for numbers** — the LLM gathered figures non-deterministically; a
   structured source is exact and consistent, so numbers don't depend on LLM luck.
-- **Retrieval decoupled from the LLM** — Tavily fetches web content and a plain
-  Gemini call synthesizes it, so context gathering uses Tavily's quota (not the
-  Gemini Search-grounding quota) and lets us steer/exclude sources.
-- **Search gathers, the writer writes** — separated so retrieval + synthesis
-  produce free-form context while the writer produces schema-enforced output.
-- **Fixed synthesis format** — the synthesis returns the same standard-based
-  sections every company, so the writer's input is predictable.
-- **Writer grounded in the real numbers** — the report can't disagree with the charts.
-- **Schema-enforced writer** — the writer cannot return a malformed shape.
-- **Pipeline separated from the job queue** — `build_report` is a pure function
-  of its input, so it's testable and reusable.
+- **An agent, not a fixed pipeline** — the model chooses its own tools and when to
+  stop, so it can re-resolve an ambiguous name or search again when context is
+  thin, instead of following one hardcoded path.
+- **Autonomy, but not over the numbers** — code stamps the yfinance figures in
+  last, so the report can't disagree with the charts no matter what the agent says.
+- **Bounded and coerced** — `MAX_STEPS` caps the loop and the agent's output is
+  normalised, so nondeterminism can't hang the build or crash the report writer.
+- **Retrieval via Tavily** — a dedicated search tool (not Gemini Search grounding)
+  uses Tavily's quota and lets us steer/exclude sources.
+- **Agent separated from the job queue** — `build_report` keeps a stable contract,
+  so the loop is testable and swappable behind it.
 - **Resilient job loop** — one company's failure never sinks the batch.

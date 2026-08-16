@@ -57,19 +57,43 @@ def test_all_null_financials_is_not_usable():
 
 # --- missing_critical_fields ---
 
+def _with_summary(data):
+    """A report whose narrative is present, to isolate the revenue signal."""
+    data["summary"] = "An assessment."
+    return data
+
+
 def test_missing_revenue_when_financials_empty():
-    assert missing_critical_fields(_report()) == ["revenue"]
+    assert missing_critical_fields(_with_summary(_report())) == ["revenue"]
 
 
 def test_missing_revenue_when_latest_year_has_no_revenue():
-    assert missing_critical_fields(_report(financials=[
+    assert missing_critical_fields(_with_summary(_report(financials=[
         {"year": "2024", "revenue": 100.0, "net_income": 10.0},
-        {"year": "2025", "revenue": None, "net_income": 11.0}])) == ["revenue"]
+        {"year": "2025", "revenue": None, "net_income": 11.0}]))) == ["revenue"]
 
 
-def test_no_missing_when_latest_revenue_present():
-    assert missing_critical_fields(_report(financials=[
-        {"year": "2025", "revenue": 70000.0, "net_income": 11226.0}])) == []
+def test_both_missing_when_no_revenue_and_no_narrative():
+    assert missing_critical_fields(_report()) == ["revenue", "narrative"]
+
+
+def test_missing_narrative_when_summary_empty():
+    # The agent loop can hit MAX_STEPS without ever calling submit_report: the
+    # yfinance numbers are present but the narrative is blank. That must be
+    # flagged, not silently written as a finished report.
+    data = _report(financials=[{"year": "2025", "revenue": 100.0,
+                                "net_income": 10.0}])
+    data["summary"] = ""
+    assert missing_critical_fields(data) == ["narrative"]
+
+
+def test_no_missing_when_revenue_and_summary_present():
+    data = _report(financials=[{"year": "2025", "revenue": 70000.0,
+                                "net_income": 11226.0}])
+    data["summary"] = "A real assessment."
+    assert missing_critical_fields(data) == []
+
+
 
 
 if __name__ == "__main__":
