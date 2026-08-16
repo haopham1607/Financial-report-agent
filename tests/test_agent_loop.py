@@ -128,6 +128,86 @@ def test_model_turn_survives_empty_candidates():
         agent_loop.client = original_client
 
 
+def test_model_turn_survives_missing_content():
+    # A candidate can come back with content=None (e.g. MAX_TOKENS with no
+    # parts produced). The loop must not crash indexing candidate.content.parts.
+    class FakeCandidate:
+        content = None
+
+    class FakeResponse:
+        candidates = [FakeCandidate()]
+
+    class FakeClient:
+        class Models:
+            def generate_content(self, **kwargs):
+                return FakeResponse()
+        models = Models()
+
+    original_client = agent_loop.client
+    agent_loop.client = FakeClient()
+    try:
+        content, calls = _real_model_turn([])
+        assert content is None
+        assert calls == []
+    finally:
+        agent_loop.client = original_client
+
+
+def test_failed_refetch_does_not_clobber_numbers():
+    # The prompt invites the model to re-resolve/re-fetch; a second, failing
+    # fetch_financials call must not wipe out numbers already captured.
+    good_nums = {"currency_unit": "tỷ VNĐ",
+                 "financials": [{"year": "2025", "revenue": 100.0,
+                                "net_income": 10.0}]}
+    agent_loop._model_turn = _script([
+        [("fetch_financials", {"ticker": "TST"})],
+        [("fetch_financials", {"ticker": "TST"})],
+        [("submit_report",
+          {"summary": "S", "verdict": "V", "health": "good", "analysis": "a"})],
+    ])
+    agent_loop.resolve_ticker = lambda name: "TST"
+    _fetch_results = iter([good_nums, {}])
+    agent_loop.fetch_financials = lambda tk: next(_fetch_results)
+    agent_loop.search = lambda query, exclude_domains=None: []
+
+    report = agent_loop.run_agent("X")
+    assert report["currency_unit"] == "tỷ VNĐ"
+    assert report["financials"][0]["revenue"] == 100.0
+
+
+def test_submit_report_alongside_another_call_still_dispatches_it():
+    # submit_report arriving first (or anywhere) in a multi-call turn must not
+    # skip the turn's other calls.
+    nums = {"currency_unit": "tỷ VNĐ",
+            "financials": [{"year": "2025", "revenue": 100.0, "net_income": 10.0}]}
+    final = {"summary": "S", "verdict": "V", "health": "good", "analysis": "a"}
+    agent_loop._model_turn = _script([
+        [("fetch_financials", {"ticker": "TST"}), ("submit_report", final)],
+    ])
+    agent_loop.resolve_ticker = lambda name: "TST"
+    agent_loop.fetch_financials = lambda tk: nums
+    agent_loop.search = lambda query, exclude_domains=None: []
+
+    report = agent_loop.run_agent("X")
+    assert report["financials"][0]["revenue"] == 100.0   # fetch was dispatched
+    assert report["summary"] == "S"                       # narrative submitted
+
+
+def test_assemble_coerces_missing_and_bad_fields():
+    # submit_report args are untrusted model output: missing keys, an
+    # out-of-enum health, and a non-numeric segment revenue must all coerce
+    # to safe defaults instead of flowing None/garbage into report.write_report.
+    final = {"segments": [{"name": "A", "revenue": "not a number"}],
+             "health": "bogus", "analysis": None}
+    report = agent_loop._assemble(final, {}, [])
+    assert report["summary"] == ""
+    assert report["highlights"] == []
+    assert report["risks"] == []
+    assert report["segments"] == []
+    assert report["health"] == "mixed"
+    assert report["context"] == ""
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

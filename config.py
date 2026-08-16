@@ -1,4 +1,4 @@
-"""Static configuration for the financial-report agent: language + prompts."""
+"""Static configuration for the financial-report agent: language + agent prompt + search exclude list."""
 
 # Language for all generated output (analysis, summary, highlights, risks,
 # report headings, chart labels). Set to "English" to switch everything back.

@@ -74,9 +74,6 @@ _TOOLS = [types.Tool(function_declarations=[
     ),
 ])]
 
-_NARRATIVE_KEYS = ("summary", "verdict", "health", "segments",
-                   "segment_period", "highlights", "risks")
-
 
 # --- one model turn + tool dispatch ---------------------------------------
 
@@ -100,15 +97,23 @@ def _model_turn(contents):
 
 
 def _dispatch(name, args):
-    """Run a non-terminal tool; return a JSON-serialisable dict result."""
-    if name == "resolve_ticker":
-        return {"ticker": resolve_ticker(args.get("company_name", ""))}
-    if name == "fetch_financials":
-        return fetch_financials(args.get("ticker", "")) or {}
-    if name == "web_search":
-        return {"results": search(args.get("query", ""),
-                                  exclude_domains=EXCLUDE_DOMAINS)}
-    return {"error": f"unknown tool {name}"}
+    """Run a non-terminal tool; return a JSON-serialisable dict result.
+
+    Never raises — a failing tool (e.g. web_search when tavily-python is
+    missing) degrades to an {"error": ...} result the model can react to,
+    instead of killing the whole run.
+    """
+    try:
+        if name == "resolve_ticker":
+            return {"ticker": resolve_ticker(args.get("company_name", ""))}
+        if name == "fetch_financials":
+            return fetch_financials(args.get("ticker", "")) or {}
+        if name == "web_search":
+            return {"results": search(args.get("query", ""),
+                                      exclude_domains=EXCLUDE_DOMAINS)}
+        return {"error": f"unknown tool {name}"}
+    except Exception as e:
+        return {"error": str(e)[:200]}
 
 
 # --- the loop -------------------------------------------------------------
@@ -129,34 +134,88 @@ def run_agent(company: str) -> dict:
             contents.append(types.Content(role="user", parts=[types.Part(
                 text="Call a tool, or submit_report when you have enough.")]))
             continue
+        # One turn may contain several function calls. The API contract is a
+        # SINGLE Content (role="user" — "tool" is not a valid role) carrying
+        # one function_response part per call, not N separate contents.
+        response_parts = []
         for name, args in calls:
             if name == "submit_report":
+                # Record and keep dispatching the rest of this turn's calls
+                # (e.g. a fetch_financials alongside it) instead of skipping
+                # them; the outer loop still stops once the turn is done.
                 final = args
-                break
+                continue
             result = _dispatch(name, args)
             if name == "fetch_financials":
-                numbers = result or {}
+                # The prompt invites re-resolving/re-fetching; a second,
+                # failing fetch must not wipe out numbers already captured.
+                if result:
+                    numbers = result
             elif name == "web_search":
                 for r in result.get("results", []):
                     uri = r.get("uri")
                     if uri and uri not in seen:
                         seen.add(uri)
                         sources.append({"title": r.get("title") or uri, "uri": uri})
-            contents.append(types.Content(role="tool", parts=[
-                types.Part.from_function_response(name=name, response=result)]))
+            response_parts.append(
+                types.Part.from_function_response(name=name, response=result))
+        if response_parts:
+            contents.append(types.Content(role="user", parts=response_parts))
         if final is not None:
             break
 
     return _assemble(final, numbers, sources)
 
 
+# --- _assemble coercion helpers --------------------------------------------
+# The model's submit_report args are untrusted input: missing keys, wrong
+# types, or an out-of-enum health would otherwise flow straight into
+# report.write_report (e.g. "\n".join(...) over a None, sum(...) over a
+# string revenue) and crash the whole batch job outside its try/except.
+
+_VALID_HEALTH = {"good", "mixed", "weak"}
+
+
+def _as_str(value) -> str:
+    return "" if value is None else str(value)
+
+
+def _as_str_list(value) -> list:
+    if not isinstance(value, list):
+        return []
+    return [v for v in value if isinstance(v, str)]
+
+
+def _as_health(value) -> str:
+    return value if value in _VALID_HEALTH else "mixed"
+
+
+def _as_segments(value) -> list:
+    if not isinstance(value, list):
+        return []
+    out = []
+    for seg in value:
+        if not isinstance(seg, dict) or "name" not in seg or "revenue" not in seg:
+            continue
+        revenue = seg["revenue"]
+        if isinstance(revenue, bool) or not isinstance(revenue, (int, float)):
+            continue
+        out.append({"name": str(seg["name"]), "revenue": revenue})
+    return out
+
+
 def _assemble(final, numbers, sources) -> dict:
     """Combine the agent's narrative with the authoritative numbers + sources."""
     report = {}
     if final:
-        for k in _NARRATIVE_KEYS:
-            report[k] = final.get(k)
-        report["context"] = final.get("analysis", "")
+        report["summary"] = _as_str(final.get("summary"))
+        report["verdict"] = _as_str(final.get("verdict"))
+        report["health"] = _as_health(final.get("health"))
+        report["segments"] = _as_segments(final.get("segments"))
+        report["segment_period"] = _as_str(final.get("segment_period"))
+        report["highlights"] = _as_str_list(final.get("highlights"))
+        report["risks"] = _as_str_list(final.get("risks"))
+        report["context"] = _as_str(final.get("analysis"))
     else:  # hit MAX_STEPS without submitting — best-effort empty narrative
         report.update({"summary": "", "verdict": "", "health": "mixed",
                        "segments": [], "segment_period": "",
