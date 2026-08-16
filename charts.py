@@ -16,6 +16,10 @@ CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
                "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 S_BLUE, S_ORANGE = CATEGORICAL[0], CATEGORICAL[1]
 
+# Donut slices below this share (%) are drawn without an arc label — see
+# segment_chart. Tuned so a ~1.5% sliver stays clean while 5%+ keeps its label.
+LABEL_MIN_SHARE = 3.0
+
 
 def fmt_num(value) -> str:
     """Format a number with thousands separators; '—' for None."""
@@ -92,6 +96,21 @@ def segment_chart(segments, lab, period=""):
     if period:
         title["subtext"] = period
         title["subtextStyle"] = {"color": MUTED, "fontSize": 12}
+
+    # Slices under LABEL_MIN_SHARE get no arc label. Several tiny adjacent
+    # slices (e.g. Nvidia's three ~1% segments) otherwise stack into a ladder of
+    # leader lines in one corner. Their name is in the legend and their exact
+    # value in the tooltip, so nothing is lost.
+    total = sum(s.get("revenue") or 0 for s in segments)
+    data = []
+    for s in segments:
+        value = s.get("revenue")
+        point = {"value": value, "name": s.get("name", "")}
+        share = (value or 0) / total * 100 if total else 0
+        if share < LABEL_MIN_SHARE:
+            point["label"] = {"show": False}
+        data.append(point)
+
     return {
         "backgroundColor": SURFACE,
         "title": title,
@@ -104,8 +123,7 @@ def segment_chart(segments, lab, period=""):
             # Name is already in the legend below; label shows only the % to
             # avoid long segment names clustering/clipping on small slices.
             "label": {"show": True, "formatter": "{d}%", "color": INK},
-            "data": [{"value": s.get("revenue"), "name": s.get("name", "")}
-                     for s in segments],
+            "data": data,
         }],
     }
 
