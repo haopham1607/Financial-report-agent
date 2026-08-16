@@ -111,6 +111,12 @@ def refresh_jobs() -> tuple[list[Job], list[str]]:
         job.report_path = write_report(job.company, data)
         job.state = "done"
         events.append(f"[{job.company}] " + lab["ev_ready"])
+        # The agent decides its own path, so report what it actually did.
+        trace = data.get("trace") or {}
+        if trace:
+            tools = ", ".join(f"{n}×{c}" for n, c in (trace.get("tools") or {}).items())
+            events.append(f"[{job.company}] " + lab["ev_agent_trace"].format(
+                steps=trace.get("steps", 0), tools=tools or "—"))
         # Soft note: report written, but a critical figure (e.g. revenue) could
         # not be found (e.g. the company isn't in the data source).
         if missing_critical_fields(data):

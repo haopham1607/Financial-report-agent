@@ -56,6 +56,38 @@ def test_happy_path_assembles_report():
     assert report["financials"][0]["revenue"] == 100.0
 
 
+def test_trace_records_tools_steps_and_submission():
+    # The loop is nondeterministic, so it must report what it actually did.
+    agent_loop._model_turn = _script([
+        [("resolve_ticker", {"company_name": "X"})],
+        [("web_search", {"query": "q1"})],
+        [("web_search", {"query": "q2"})],
+        [("submit_report", {"summary": "S", "verdict": "V", "health": "good",
+                            "analysis": "A"})],
+    ])
+    agent_loop.resolve_ticker = lambda name: "TST"
+    agent_loop.fetch_financials = lambda tk: {}
+    agent_loop.search = lambda query, exclude_domains=None: []
+
+    trace = agent_loop.run_agent("X")["trace"]
+    assert trace["steps"] == 4
+    assert trace["submitted"] is True
+    assert trace["tools"] == {"resolve_ticker": 1, "web_search": 2,
+                              "submit_report": 1}
+
+
+def test_trace_marks_a_run_that_never_submitted():
+    agent_loop._model_turn = _script(
+        [[("web_search", {"query": "q"})] for _ in range(agent_loop.MAX_STEPS + 2)])
+    agent_loop.resolve_ticker = lambda name: "TST"
+    agent_loop.fetch_financials = lambda tk: {}
+    agent_loop.search = lambda query, exclude_domains=None: []
+
+    trace = agent_loop.run_agent("X")["trace"]
+    assert trace["submitted"] is False
+    assert trace["steps"] == agent_loop.MAX_STEPS
+
+
 def test_numbers_are_authoritative():
     # submit_report tries to sneak in numbers; the fetch_financials numbers win.
     nums = {"currency_unit": "USD billion",

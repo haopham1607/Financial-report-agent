@@ -6,12 +6,16 @@ the yfinance numbers are stamped in last (authoritative), and the returned dict 
 the same shape the rest of the app already consumes.
 """
 
+import logging
+
 from google.genai import types
 
 from config import AGENT_PROMPT, EXCLUDE_DOMAINS
 from data_source import fetch_financials, resolve_ticker
 from model import MODEL, client
 from web_search import search
+
+log = logging.getLogger(__name__)
 
 MAX_STEPS = 8
 
@@ -125,8 +129,12 @@ def run_agent(company: str) -> dict:
         parts=[types.Part(text=AGENT_PROMPT.format(company=company))])]
     numbers, sources, seen = {}, [], set()
     final = None
+    # The loop is nondeterministic, so record what it actually did: how many
+    # turns it took, which tools it called, and whether it finished properly.
+    steps, tools = 0, {}
 
     for _ in range(MAX_STEPS):
+        steps += 1
         content, calls = _model_turn(contents)
         if content is not None:
             contents.append(content)
@@ -139,6 +147,7 @@ def run_agent(company: str) -> dict:
         # one function_response part per call, not N separate contents.
         response_parts = []
         for name, args in calls:
+            tools[name] = tools.get(name, 0) + 1
             if name == "submit_report":
                 # Record and keep dispatching the rest of this turn's calls
                 # (e.g. a fetch_financials alongside it) instead of skipping
@@ -164,7 +173,10 @@ def run_agent(company: str) -> dict:
         if final is not None:
             break
 
-    return _assemble(final, numbers, sources)
+    trace = {"steps": steps, "tools": tools, "submitted": final is not None}
+    log.info("agent [%s]: %d steps, tools=%s, submitted=%s",
+             company, steps, tools, final is not None)
+    return _assemble(final, numbers, sources, trace)
 
 
 # --- _assemble coercion helpers --------------------------------------------
@@ -204,8 +216,12 @@ def _as_segments(value) -> list:
     return out
 
 
-def _assemble(final, numbers, sources) -> dict:
-    """Combine the agent's narrative with the authoritative numbers + sources."""
+def _assemble(final, numbers, sources, trace=None) -> dict:
+    """Combine the agent's narrative with the authoritative numbers + sources.
+
+    `trace` (steps / tools called / whether it submitted) is carried through so a
+    run can be inspected after the fact.
+    """
     report = {}
     if final:
         report["summary"] = _as_str(final.get("summary"))
@@ -221,5 +237,6 @@ def _assemble(final, numbers, sources) -> dict:
                        "segments": [], "segment_period": "",
                        "highlights": [], "risks": [], "context": ""})
     report["sources"] = sources
+    report["trace"] = trace or {"steps": 0, "tools": {}, "submitted": False}
     report.update(numbers)   # yfinance numbers stamped LAST — authoritative
     return report

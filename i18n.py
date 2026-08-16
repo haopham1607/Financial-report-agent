@@ -90,6 +90,7 @@ LABELS = {
             "could not process yet ({error}) — left running, will retry on the "
             "next refresh."
         ),
+        "ev_agent_trace": "agent: {steps} steps, {tools}",
         "err_rate_limit": "rate limit — too many requests in a short time",
         "err_busy": "the AI service is busy right now — high demand",
     },
@@ -175,6 +176,7 @@ LABELS = {
             "chưa xử lý được ({error}) — vẫn để đang chạy, sẽ thử lại ở lần "
             "làm mới sau."
         ),
+        "ev_agent_trace": "agent: {steps} bước, {tools}",
         "err_rate_limit": "giới hạn tốc độ — quá nhiều yêu cầu trong thời gian ngắn",
         "err_busy": "dịch vụ AI đang bận do nhu cầu cao",
     },
