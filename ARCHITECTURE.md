@@ -102,8 +102,8 @@ it draws on Tavily's own quota and lets us steer and exclude sources.
 ## 3. What each file does
 
 Dependency flow (one direction):
-`schemas ← financials / data_source / research ← pipeline ← agent ← app`
-(and `research` uses the `web_search` tool)
+`i18n / agent (prompts, model, loop) ← tools ← reporting ← jobs ← ui`
+(entry shims `app.py` / `agent.py` sit at the root and call into the package)
 
 ### Core pipeline
 
@@ -113,7 +113,7 @@ Dependency flow (one direction):
 `NarrativeReport` (it cannot return a malformed shape) and the dashboard renders
 this shape.
 
-**`data_source.py`** — **structured financials from yfinance.**
+**`finreport/tools/market_data.py`** — **structured financials from yfinance.**
 - `resolve_ticker(name)` — one small LLM call, `"Vinamilk" → "VNM.VN"`.
 - `fetch_financials(ticker)` — yfinance → an **adapter** (`_adapt`) that maps the
   provider's fields to our schema in **pure code**: renames fields, normalizes
@@ -121,12 +121,12 @@ this shape.
   debt-to-equity, current ratio, free cash flow = operating + capex). Returns
   `{}` on any failure so callers degrade gracefully.
 
-**`web_search.py`** — the **Tavily web-search tool**, isolated behind one
+**`finreport/tools/web_search.py`** — the **Tavily web-search tool**, isolated behind one
 function: `search(query, max_results, exclude_domains)` → `[{title, uri, content}]`,
 returning `[]` on a missing key or any error. Self-contained (loads `.env`, logs a
 warning when the key is missing); swapping providers touches only this file.
 
-**`agent_loop.py`** — **the agent.** Three parts:
+**`finreport/agent/loop.py`** — **the agent.** Three parts:
 - **The tool schemas** — Gemini `FunctionDeclaration`s for `resolve_ticker`,
   `fetch_financials`, `web_search`, and `submit_report` (the terminal tool). This
   is the menu the model chooses from.
@@ -139,47 +139,47 @@ warning when the key is missing); swapping providers touches only this file.
   narrative (defensively coerced), then `context`/`sources`, then
   `report.update(numbers)` **last** so the yfinance figures are authoritative.
 
-**`financials.py`** — **pure logic over the report dict** (no network/LLM/I/O):
+**`finreport/reporting/checks.py`** — **pure logic over the report dict** (no network/LLM/I/O):
 - `has_usable_financials(data)` — does the report have any real number worth rendering?
 - `missing_critical_fields(data)` — is revenue (latest year) missing, or the
   narrative blank (the agent never submitted)? Drives the "data incomplete" note.
 
-**`pipeline.py`** — **`build_report(company)`** — a thin wrapper that runs
+**`finreport/reporting/build.py`** — **`build_report(company)`** — a thin wrapper that runs
 `agent_loop.run_agent(company)`. Kept separate from the job queue so the queue
 depends on a stable `build_report(company) -> dict` contract.
 
 ### Orchestration & I/O
 
-**`agent.py`** — the **job queue + CLI.** `queue_jobs` (queue),
+**`finreport/jobs/queue.py`** — the **job queue + CLI.** `queue_jobs` (queue),
 `refresh_jobs` (build pending jobs → `build_report` → `write_report`, per-job
 resilient + saved as each finishes), `clear_finished_jobs`, and the
 `python agent.py …` CLI.
 
-**`jobs.py`** — **persistence.** A `Job` dataclass and `JobStore`, a JSON-file
+**`finreport/jobs/store.py`** — **persistence.** A `Job` dataclass and `JobStore`, a JSON-file
 store with **atomic writes** (temp file + `os.replace`) so a crash never
 corrupts `jobs.json`.
 
-**`report.py`** — **the writer.** Turns a report dict into
+**`finreport/reporting/writer.py`** — **the writer.** Turns a report dict into
 `reports/{slug}_{date}.md` (human-readable, incl. sources) + a companion `.json`
 (which drives the dashboard).
 
-**`app.py`** — the **Streamlit UI.** A start form, a Jobs tab, and a Reports tab
+**`finreport/ui/app.py`** — the **Streamlit UI.** A start form, a Jobs tab, and a Reports tab
 that reads a report's `.json` and calls `render_report` to draw the KPI tiles,
 verdict banner, charts, analysis, and sources.
 
-**`charts.py`** — **ECharts builders.** Pure functions turning report numbers
+**`finreport/reporting/charts.py`** — **ECharts builders.** Pure functions turning report numbers
 into chart `option` dicts (trend, segment donut, profit donut, cash-vs-debt,
 cash-flow), plus the palette and render helper.
 
 ### Support
 
-**`config.py`** — `REPORT_LANGUAGE`; `AGENT_PROMPT` (the agent's goal, how to use
+**`finreport/agent/prompts.py`** — `REPORT_LANGUAGE`; `AGENT_PROMPT` (the agent's goal, how to use
 its tools, and the report fields it must submit — written in `REPORT_LANGUAGE`);
 and `EXCLUDE_DOMAINS` (domains barred from `web_search`).
 
-**`model.py`** — the shared Gemini `client` and the `MODEL` name (from env).
+**`finreport/agent/model.py`** — the shared Gemini `client` and the `MODEL` name (from env).
 
-**`i18n.py`** — every user-facing string (report/chart/UI labels, job toasts)
+**`finreport/i18n.py`** — every user-facing string (report/chart/UI labels, job toasts)
 keyed by language.
 
 ---

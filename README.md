@@ -125,13 +125,13 @@ Run from the project root with `-m` so they can import the app's modules:
 
 ```bash
 ./.venv/bin/python -m tests                    # the whole suite
-./.venv/bin/python -m tests.test_financials    # pure report-dict logic
-./.venv/bin/python -m tests.test_data_source   # yfinance adapter
-./.venv/bin/python -m tests.test_pipeline      # build_report: numbers + context → report
-./.venv/bin/python -m tests.test_agent         # job-loop resilience
-./.venv/bin/python -m tests.test_report        # markdown report (incl. segment period)
+./.venv/bin/python -m tests.test_checks        # pure report-dict logic
+./.venv/bin/python -m tests.test_market_data   # yfinance adapter
+./.venv/bin/python -m tests.test_build         # build_report: numbers + context → report
+./.venv/bin/python -m tests.test_queue         # job-loop resilience
+./.venv/bin/python -m tests.test_writer        # markdown report (incl. segment period)
 ./.venv/bin/python -m tests.test_web_search    # Tavily search wrapper
-./.venv/bin/python -m tests.test_agent_loop    # the agent loop (tools, steps, assembly)
+./.venv/bin/python -m tests.test_loop          # the agent loop (tools, steps, assembly)
 ```
 
 ## Project layout
@@ -141,17 +141,18 @@ short:
 
 | File | Role |
 |------|------|
-| `app.py` | Streamlit UI |
-| `agent.py` | job queue + CLI (orchestration) |
-| `pipeline.py` | `build_report()` — thin wrapper over the agent loop |
-| `agent_loop.py` | **the agent**: tool schemas, the loop, and report assembly |
-| `web_search.py` | Tavily web-search tool (isolated; `[]` on missing key / error) |
-| `data_source.py` | yfinance structured financials + name→ticker |
-| `financials.py` | pure report-dict logic (completeness gate) |
-| `schemas.py` | the structured report data contracts |
-| `report.py` | writes the `.md` + `.json` |
-| `charts.py` | ECharts chart builders |
-| `jobs.py` | job persistence (`JobStore`) |
-| `i18n.py` | all user-facing text, per language |
-| `config.py` | language + prompts |
-| `model.py` | Gemini client + model name |
+| `app.py` / `agent.py` | entry points (shims into the package) |
+| `finreport/agent/loop.py` | **the agent**: tool schemas, the loop, report assembly |
+| `finreport/agent/prompts.py` | language, `AGENT_PROMPT`, `EXCLUDE_DOMAINS` |
+| `finreport/agent/model.py` | Gemini client + model name |
+| `finreport/tools/market_data.py` | yfinance financials + name→ticker |
+| `finreport/tools/web_search.py` | Tavily web-search tool |
+| `finreport/jobs/queue.py` | job queue + CLI (`queue_jobs`, `refresh_jobs`) |
+| `finreport/jobs/store.py` | job persistence (`Job`, `JobStore`) |
+| `finreport/reporting/build.py` | `build_report()` — runs the agent loop |
+| `finreport/reporting/writer.py` | writes the `.md` + `.json` |
+| `finreport/reporting/charts.py` | ECharts chart builders |
+| `finreport/reporting/checks.py` | completeness gates |
+| `finreport/ui/app.py` | Streamlit page shell |
+| `finreport/ui/render.py` | the report dashboard |
+| `finreport/i18n.py` | all user-facing text, per language |
