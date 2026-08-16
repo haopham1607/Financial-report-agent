@@ -4,7 +4,7 @@ Plain asserts, no test framework. Tavily is never called: tests monkeypatch
 _client() with a fake, and the no-key path needs no client at all.
 """
 
-import web_search
+from finreport.tools import web_search
 
 
 class _FakeTavily:
@@ -68,7 +68,7 @@ def test_no_key_is_logged_not_silent():
             records.append(record)
 
     web_search._client = lambda: None
-    logger = logging.getLogger("web_search")
+    logger = logging.getLogger(web_search.__name__)
     handler = _Capture()
     logger.addHandler(handler)
     try:
@@ -102,7 +102,7 @@ def test_tavily_error_is_logged_as_warning():
             raise RuntimeError("network down")
 
     _use(_Boom())
-    logger = logging.getLogger("web_search")
+    logger = logging.getLogger(web_search.__name__)
     handler = _Capture()
     logger.addHandler(handler)
     try:

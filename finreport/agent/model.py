@@ -5,9 +5,11 @@ import os
 from dotenv import load_dotenv
 from google import genai
 
+from finreport import ROOT
+
 # Load .env from this file's directory so it works regardless of the
 # working directory the app is launched from (CLI or Streamlit).
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(ROOT, ".env"))
 
 # The model used for every call: name->ticker, the search synthesis, and the
 # writer. Uses "flash" (not "flash-lite"), which follows the number-format

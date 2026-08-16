@@ -10,10 +10,12 @@ import os
 
 from dotenv import load_dotenv
 
+from finreport import ROOT
+
 # Load .env from this file's directory so the tool is self-contained: it works
 # standalone (scripts, tests, any caller) regardless of whether model.py was
 # imported first. load_dotenv does not override variables already in the env.
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(ROOT, ".env"))
 
 log = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ Kept as a thin, separately-testable wrapper over agent_loop.run_agent so the job
 queue depends on a stable build_report(company) -> dict contract.
 """
 
-from agent_loop import run_agent
+from finreport.agent.loop import run_agent
 
 
 def build_report(company: str) -> dict:

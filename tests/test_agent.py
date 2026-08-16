@@ -99,7 +99,7 @@ def test_transient_errors_get_friendly_messages():
     # A 429/503 must be shown as an accurate, non-scary reason — not Google's raw
     # "you exceeded your quota, check your billing" text (which is misleading for
     # a transient per-minute rate limit or a busy service).
-    from i18n import get_labels
+    from finreport.i18n import get_labels
     lab = get_labels()
     jobs = [Job.new("A"), Job.new("B")]
 

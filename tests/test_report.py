@@ -10,7 +10,7 @@ import os
 import tempfile
 
 import report
-from i18n import get_labels
+from finreport.i18n import get_labels
 
 lab = get_labels()
 

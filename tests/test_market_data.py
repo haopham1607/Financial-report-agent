@@ -5,7 +5,7 @@ it raw-currency rows (real Hoa Phat figures, ×1e9) and check the mapping,
 billions normalisation, and derived computations.
 """
 
-from data_source import _adapt
+from finreport.tools.market_data import _adapt
 
 B = 1e9
 
@@ -65,7 +65,7 @@ def test_no_revenue_returns_empty():
 def test_row_values_prefers_broader_cash_then_falls_back():
     import datetime
     import pandas as pd
-    from data_source import _row_values
+    from finreport.tools.market_data import _row_values
 
     broad = "Cash Cash Equivalents And Short Term Investments"
     strict = "Cash And Cash Equivalents"

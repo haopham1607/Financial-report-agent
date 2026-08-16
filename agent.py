@@ -26,7 +26,7 @@ import os
 import sys
 
 from financials import has_usable_financials, missing_critical_fields
-from i18n import get_labels
+from finreport.i18n import get_labels
 from jobs import Job, JobStore
 from pipeline import build_report
 from report import write_report

@@ -10,10 +10,10 @@ import logging
 
 from google.genai import types
 
-from config import AGENT_PROMPT, EXCLUDE_DOMAINS
-from data_source import fetch_financials, resolve_ticker
-from model import MODEL, client
-from web_search import search
+from finreport.agent.model import MODEL, client
+from finreport.agent.prompts import AGENT_PROMPT, EXCLUDE_DOMAINS
+from finreport.tools.market_data import fetch_financials, resolve_ticker
+from finreport.tools.web_search import search
 
 log = logging.getLogger(__name__)
 

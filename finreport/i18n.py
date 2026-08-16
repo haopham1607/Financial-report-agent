@@ -5,7 +5,7 @@ this file only. `get_labels()` returns the active-language dict based on
 config.REPORT_LANGUAGE.
 """
 
-from config import REPORT_LANGUAGE
+from finreport.agent.prompts import REPORT_LANGUAGE
 
 LABELS = {
     "English": {

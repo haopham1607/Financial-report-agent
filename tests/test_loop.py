@@ -5,7 +5,7 @@ Plain asserts, no framework. The model turn (_model_turn) and the tool
 implementations are monkeypatched, so no real API / network is used.
 """
 
-import agent_loop
+from finreport.agent import loop as agent_loop
 
 # Save the real _model_turn before any tests monkeypatch it
 _real_model_turn = agent_loop._model_turn

@@ -5,7 +5,7 @@ import datetime
 import json
 import os
 
-from i18n import get_labels
+from finreport.i18n import get_labels
 
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
 

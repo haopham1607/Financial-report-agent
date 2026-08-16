@@ -9,7 +9,7 @@ import yfinance as yf
 from google.genai import types
 from pydantic import BaseModel
 
-from model import MODEL, client
+from finreport.agent.model import MODEL, client
 
 # --- name -> ticker (the one small LLM call) ------------------------------
 
