@@ -1,31 +1,12 @@
-"""Assemble a structured report from the data source + gathered context.
+"""Build a structured report by running the tool-calling agent loop.
 
-Given a company name: fetch its numbers from the data source, gather qualitative
-context from a grounded web search (fixed format), then have the writer fuse the
-two into the structured financial-health report — with the data source owning
-every figure. Kept separate from job orchestration so it is testable/reusable.
+Kept as a thin, separately-testable wrapper over agent_loop.run_agent so the job
+queue depends on a stable build_report(company) -> dict contract.
 """
 
-from data_source import fetch_financials, resolve_ticker
-from research import gather_context, write_narrative
+from agent_loop import run_agent
 
 
 def build_report(company: str) -> dict:
-    """Build the report dict for one company.
-
-    Numbers come from the data source (authoritative). A grounded search gathers
-    qualitative context (business, segments, developments, risks, ...). The
-    writer combines the numbers and the context into the report; the context and
-    its sources are carried through for display.
-    """
-    ticker = resolve_ticker(company)
-    numbers = fetch_financials(ticker) if ticker else {}
-
-    # Pass the resolved ticker so the web search targets the same company as the
-    # numbers (an ambiguous name alone can pull in unrelated same-named firms).
-    context, sources = gather_context(company, ticker or "")
-    data = write_narrative(company, numbers, context)
-    data.update(numbers)  # data source owns financials / margins / bs / cf / unit
-    data["context"] = context
-    data["sources"] = sources
-    return data
+    """Build the report dict for one company via the agent loop."""
+    return run_agent(company)

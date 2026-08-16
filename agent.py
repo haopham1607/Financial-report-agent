@@ -7,15 +7,16 @@ Work runs as a small local job queue: queue companies, then build them.
     python agent.py status           build pending jobs; write their reports
 
 Module layout:
-    config.py       language + prompts
+    config.py       language + agent prompt + exclude list
     model.py        Gemini client + model name
     i18n.py         all user-facing text (report, charts, UI), per language
     schemas.py      the structured report data contracts (Pydantic)
     financials.py   pure report-dict logic (completeness gate, forecast filter)
     jobs.py         Job dataclass + JobStore (persistence)
     data_source.py  yfinance structured financials + name->ticker
-    research.py     gather_context (web search + synthesis) + write_narrative (writer)
-    pipeline.py     build_report() — assembles a report from the sources
+    agent_loop.py   tool-calling loop (resolve_ticker, fetch_financials, web_search, submit_report)
+    web_search.py   grounded search against Exa API
+    pipeline.py     build_report() — delegates to agent_loop.run_agent
     report.py       markdown + JSON report writer
     charts.py       ECharts builders + palette
     app.py          Streamlit frontend driving the same functions
