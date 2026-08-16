@@ -85,7 +85,12 @@ def _model_turn(contents):
     resp = client.models.generate_content(
         model=MODEL, contents=contents,
         config=types.GenerateContentConfig(tools=_TOOLS))
+    # Gracefully handle empty or missing candidates (safety-filtered responses, etc.)
+    if not resp.candidates:
+        return None, []
     content = resp.candidates[0].content
+    if content is None:
+        return None, []
     calls = []
     for part in (content.parts or []):
         fc = getattr(part, "function_call", None)
@@ -118,7 +123,8 @@ def run_agent(company: str) -> dict:
 
     for _ in range(MAX_STEPS):
         content, calls = _model_turn(contents)
-        contents.append(content)
+        if content is not None:
+            contents.append(content)
         if not calls:
             contents.append(types.Content(role="user", parts=[types.Part(
                 text="Call a tool, or submit_report when you have enough.")]))

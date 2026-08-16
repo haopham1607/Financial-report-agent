@@ -7,6 +7,9 @@ implementations are monkeypatched, so no real API / network is used.
 
 import agent_loop
 
+# Save the real _model_turn before any tests monkeypatch it
+_real_model_turn = agent_loop._model_turn
+
 
 def _script(turns):
     """Return a _model_turn stub yielding scripted turns.
@@ -101,6 +104,28 @@ def test_max_steps_without_submit_returns_best_effort():
     report = agent_loop.run_agent("X")   # must return
     assert report["summary"] == ""       # best-effort empty narrative
     assert report["health"] == "mixed"
+
+
+def test_model_turn_survives_empty_candidates():
+    # A safety-filtered or degenerate Gemini response has no candidates.
+    # The loop must not crash on indexing candidates[0].
+    class FakeResponse:
+        candidates = []
+
+    class FakeClient:
+        class Models:
+            def generate_content(self, **kwargs):
+                return FakeResponse()
+        models = Models()
+
+    original_client = agent_loop.client
+    agent_loop.client = FakeClient()
+    try:
+        content, calls = _real_model_turn([])
+        assert content is None
+        assert calls == []
+    finally:
+        agent_loop.client = original_client
 
 
 if __name__ == "__main__":
