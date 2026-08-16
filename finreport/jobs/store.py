@@ -12,7 +12,9 @@ import json
 import os
 from dataclasses import dataclass
 
-JOBS_FILE = os.path.join(os.path.dirname(__file__), "jobs.json")
+from finreport import ROOT
+
+JOBS_FILE = os.path.join(ROOT, "jobs.json")
 
 _JOB_FIELDS = None  # populated after Job is defined
 

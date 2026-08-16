@@ -9,8 +9,8 @@ cleans up. Assertions use get_labels() so they hold in either language.
 import os
 import tempfile
 
-import report
 from finreport.i18n import get_labels
+from finreport.reporting import writer as report
 
 lab = get_labels()
 

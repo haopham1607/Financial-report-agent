@@ -4,7 +4,7 @@ Run: python -m tests.test_pipeline
 Plain asserts, no framework. run_agent is stubbed, so no real API is used.
 """
 
-import pipeline
+from finreport.reporting import build as pipeline
 
 
 def test_build_report_delegates_to_run_agent():

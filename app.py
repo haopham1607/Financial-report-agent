@@ -9,10 +9,11 @@ import os
 
 import streamlit as st
 
-import charts
-from agent import clear_finished_jobs, refresh_jobs, queue_jobs, store
+from finreport.jobs.queue import (clear_finished_jobs, queue_jobs,
+                                  refresh_jobs, store)
 from finreport.i18n import get_labels
-from report import REPORTS_DIR
+from finreport.reporting import charts
+from finreport.reporting.writer import REPORTS_DIR
 
 L = get_labels()
 

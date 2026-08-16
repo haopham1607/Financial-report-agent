@@ -6,8 +6,8 @@ stubbed so no network / API quota is used — these test the orchestration and
 resilience of the job loop, not the pipeline internals.
 """
 
-import agent
-from jobs import Job
+from finreport.jobs import queue as agent
+from finreport.jobs.store import Job
 
 
 class _FakeStore:

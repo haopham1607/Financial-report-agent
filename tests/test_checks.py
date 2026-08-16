@@ -3,7 +3,8 @@
 Plain asserts, no test framework — this project keeps its dependencies minimal.
 """
 
-from financials import has_usable_financials, missing_critical_fields
+from finreport.reporting.checks import (has_usable_financials,
+                                        missing_critical_fields)
 
 
 def _report(financials=None, margins=None, balance_sheet=None, cash_flow=None):

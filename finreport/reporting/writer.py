@@ -5,9 +5,10 @@ import datetime
 import json
 import os
 
+from finreport import ROOT
 from finreport.i18n import get_labels
 
-REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
+REPORTS_DIR = os.path.join(ROOT, "reports")
 
 
 def _fmt(value, unknown: str) -> str:
