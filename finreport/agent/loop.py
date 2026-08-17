@@ -7,6 +7,7 @@ the same shape the rest of the app already consumes.
 """
 
 import logging
+import time
 
 from google.genai import types
 
@@ -18,6 +19,11 @@ from finreport.tools.web_search import search
 log = logging.getLogger(__name__)
 
 MAX_STEPS = 8
+
+# A single run bursts several model calls, which trips the free tier's ~5/minute
+# limit; pausing and resuming beats discarding the steps already completed.
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 20  # seconds; grows 20s, 40s, 60s
 
 # --- tool schemas (what the model sees it can call) -----------------------
 
@@ -81,11 +87,34 @@ _TOOLS = [types.Tool(function_declarations=[
 
 # --- one model turn + tool dispatch ---------------------------------------
 
+def _is_transient(error) -> bool:
+    """True for a rate limit (429) or an overloaded service (503)."""
+    s = str(error)
+    return ("429" in s or "RESOURCE_EXHAUSTED" in s
+            or "503" in s or "UNAVAILABLE" in s)
+
+
 def _model_turn(contents):
-    """Call the model once. Return (model_content, [(name, args_dict), ...])."""
-    resp = client.models.generate_content(
-        model=MODEL, contents=contents,
-        config=types.GenerateContentConfig(tools=_TOOLS))
+    """Call the model once. Return (model_content, [(name, args_dict), ...]).
+
+    One agent run makes several calls back-to-back, which trips the free tier's
+    per-minute limit mid-loop. Rather than lose the steps already completed, a
+    transient 429/503 is retried after a growing pause; anything else — or a
+    still-failing call after MAX_RETRIES — is raised so the job loop leaves the
+    job `running` to retry later.
+    """
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            resp = client.models.generate_content(
+                model=MODEL, contents=contents,
+                config=types.GenerateContentConfig(tools=_TOOLS))
+            break
+        except Exception as e:
+            if attempt == MAX_RETRIES or not _is_transient(e):
+                raise
+            delay = RETRY_BASE_DELAY * (attempt + 1)
+            log.info("transient error (%s); retrying in %ds", str(e)[:60], delay)
+            time.sleep(delay)
     # Gracefully handle empty or missing candidates (safety-filtered responses, etc.)
     if not resp.candidates:
         return None, []

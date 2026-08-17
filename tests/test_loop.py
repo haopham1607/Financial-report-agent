@@ -88,6 +88,66 @@ def test_trace_marks_a_run_that_never_submitted():
     assert trace["steps"] == agent_loop.MAX_STEPS
 
 
+def test_model_turn_retries_on_rate_limit_then_succeeds():
+    # One agent run makes several model calls back-to-back, which trips the
+    # free tier's per-minute limit mid-loop. A transient 429/503 must pause and
+    # retry the SAME turn, not throw away the steps already completed.
+    calls = {"n": 0}
+    slept = []
+
+    class _Resp:
+        candidates = []
+
+    class _Models:
+        def generate_content(self, model, contents, config=None):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RuntimeError("429 RESOURCE_EXHAUSTED quota")
+            return _Resp()
+
+    class _Client:
+        models = _Models()
+
+    saved_client, saved_sleep = agent_loop.client, agent_loop.time.sleep
+    agent_loop.client = _Client()
+    agent_loop.time.sleep = lambda s: slept.append(s)
+    try:
+        content, out = _real_model_turn([])
+    finally:
+        agent_loop.client, agent_loop.time.sleep = saved_client, saved_sleep
+
+    assert calls["n"] == 3          # failed twice, succeeded on the third
+    assert len(slept) == 2          # backed off before each retry
+    assert slept[0] < slept[1]      # increasing delay
+    assert (content, out) == (None, [])
+
+
+def test_model_turn_gives_up_after_max_retries():
+    slept = []
+
+    class _Models:
+        def generate_content(self, model, contents, config=None):
+            raise RuntimeError("429 RESOURCE_EXHAUSTED quota")
+
+    class _Client:
+        models = _Models()
+
+    saved_client, saved_sleep = agent_loop.client, agent_loop.time.sleep
+    agent_loop.client = _Client()
+    agent_loop.time.sleep = lambda s: slept.append(s)
+    try:
+        raised = False
+        try:
+            _real_model_turn([])
+        except RuntimeError:
+            raised = True
+    finally:
+        agent_loop.client, agent_loop.time.sleep = saved_client, saved_sleep
+
+    assert raised                   # still surfaces to the job loop for retry
+    assert len(slept) == agent_loop.MAX_RETRIES
+
+
 def test_numbers_are_authoritative():
     # submit_report tries to sneak in numbers; the fetch_financials numbers win.
     nums = {"currency_unit": "USD billion",
