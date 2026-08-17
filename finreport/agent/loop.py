@@ -18,7 +18,10 @@ from finreport.tools.web_search import search
 
 log = logging.getLogger(__name__)
 
-MAX_STEPS = 8
+# Turns the agent gets before it must finish. 8 was too tight: a search-happy
+# run (e.g. Sabeco) spent every step on web_search and never submitted, leaving a
+# report with numbers but no narrative.
+MAX_STEPS = 12
 
 # A single run bursts several model calls, which trips the free tier's ~5/minute
 # limit; pausing and resuming beats discarding the steps already completed.
