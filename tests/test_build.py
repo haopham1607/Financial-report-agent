@@ -1,5 +1,5 @@
-"""Tests for pipeline.build_report — now a thin wrapper over the agent loop.
-Run: python -m tests.test_pipeline
+"""Tests for finreport/reporting/build.py's build_report — now a thin wrapper over the agent loop.
+Run: python -m tests.test_build
 
 Plain asserts, no framework. run_agent is stubbed, so no real API is used.
 """

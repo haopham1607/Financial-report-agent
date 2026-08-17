@@ -1,5 +1,5 @@
-"""Tests for agent_loop.run_agent — the hand-built tool-calling loop.
-Run: python -m tests.test_agent_loop
+"""Tests for finreport/agent/loop.py's run_agent — the hand-built tool-calling loop.
+Run: python -m tests.test_loop
 
 Plain asserts, no framework. The model turn (_model_turn) and the tool
 implementations are monkeypatched, so no real API / network is used.

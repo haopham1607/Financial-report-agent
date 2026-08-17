@@ -1,4 +1,4 @@
-"""Resilience tests for agent.refresh_jobs. Run: python test_agent.py
+"""Resilience tests for finreport/jobs/queue.py's refresh_jobs. Run: python -m tests.test_queue
 
 One job's failure (e.g. a rate limit while building its report) must not abort
 the batch or roll back another job that already finished. `build_report` is

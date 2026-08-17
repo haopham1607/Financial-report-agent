@@ -1,4 +1,4 @@
-"""Tests for financials.py pure checks. Run: python test_financials.py
+"""Tests for finreport/reporting/checks.py pure checks. Run: python -m tests.test_checks
 
 Plain asserts, no test framework — this project keeps its dependencies minimal.
 """

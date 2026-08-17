@@ -23,16 +23,6 @@ For each company it produces a report with:
 
 ## How it works
 
-```
-company name
-     │
-     ▼
- resolve_ticker (LLM) ─► ticker ─► yfinance ─► NUMBERS  (revenue, margins,
-                                    (deterministic)      balance sheet, cash flow)
-     │                                              │
-     ▼                                              │
-```
-
 It is a genuine **tool-calling agent**: the model is given four tools and a goal,
 and *it* decides what to call and when it has enough to finish.
 
@@ -40,7 +30,7 @@ and *it* decides what to call and when it has enough to finish.
 company name
      │
      ▼
-  ┌──────────────── the agent loop (agent_loop.py) ────────────────┐
+  ┌─────────── the agent loop (finreport/agent/loop.py) ───────────┐
   │  model picks a tool ──► code runs it ──► result fed back ──►   │
   │  repeat (max 8 steps) until the model calls submit_report      │
   │                                                                │
@@ -110,13 +100,13 @@ Reports land in `reports/` as a `.json` (drives the dashboard) plus a `.md`
 
 | Where | Setting | Default |
 |-------|---------|---------|
-| `config.py` | `REPORT_LANGUAGE` | `"Vietnamese"` (set `"English"` to switch all output) |
+| `finreport/agent/prompts.py` | `REPORT_LANGUAGE` | `"Vietnamese"` (set `"English"` to switch all output) |
 | `.env` | `GEMINI_API_KEY` | *(required)* — the model that drives the agent loop |
 | `.env` | `TAVILY_API_KEY` | *(context)* — the `web_search` tool; without it, reports are numbers-only |
 | `.env` | `RISK_AGENT_MODEL` | `gemini-3.6-flash` (the agent's model) |
-| `config.py` | `AGENT_PROMPT` | the agent's goal + how to use its tools |
-| `config.py` | `EXCLUDE_DOMAINS` | domains barred from `web_search` |
-| `agent_loop.py` | `MAX_STEPS` | `8` — how many turns the agent gets before it must finish |
+| `finreport/agent/prompts.py` | `AGENT_PROMPT` | the agent's goal + how to use its tools |
+| `finreport/agent/prompts.py` | `EXCLUDE_DOMAINS` | domains barred from `web_search` |
+| `finreport/agent/loop.py` | `MAX_STEPS` | `8` — how many turns the agent gets before it must finish |
 
 ## Tests
 

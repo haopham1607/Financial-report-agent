@@ -2,7 +2,7 @@
 
 To translate the whole app (report, charts, and UI) or add a language, edit
 this file only. `get_labels()` returns the active-language dict based on
-config.REPORT_LANGUAGE.
+finreport.agent.prompts.REPORT_LANGUAGE.
 """
 
 from finreport.agent.prompts import REPORT_LANGUAGE

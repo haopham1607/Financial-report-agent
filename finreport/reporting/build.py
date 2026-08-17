@@ -1,6 +1,6 @@
 """Build a structured report by running the tool-calling agent loop.
 
-Kept as a thin, separately-testable wrapper over agent_loop.run_agent so the job
+Kept as a thin, separately-testable wrapper over finreport.agent.loop.run_agent so the job
 queue depends on a stable build_report(company) -> dict contract.
 """
 

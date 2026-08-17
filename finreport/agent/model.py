@@ -7,7 +7,7 @@ from google import genai
 
 from finreport import ROOT
 
-# Load .env from this file's directory so it works regardless of the
+# Load .env from the project root (via ROOT) so it works regardless of the
 # working directory the app is launched from (CLI or Streamlit).
 load_dotenv(os.path.join(ROOT, ".env"))
 

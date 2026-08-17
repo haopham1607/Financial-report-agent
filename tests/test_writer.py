@@ -1,5 +1,5 @@
-"""Tests for report.py markdown — the segment section + its period label.
-Run: python test_report.py
+"""Tests for finreport/reporting/writer.py markdown — the segment section + its period label.
+Run: python -m tests.test_writer
 
 Plain asserts, no test framework — this project keeps its dependencies minimal.
 write_report does file I/O, so each case writes into a throwaway temp dir and

@@ -8,7 +8,7 @@ REPORT_LANGUAGE = "Vietnamese"
 # publish unreliable figures). Curated; extend as needed.
 EXCLUDE_DOMAINS = ["studocu.com", "scribd.com", "coursehero.com"]
 
-# Agent prompt. Drives the hand-built tool-calling loop in agent_loop.py: the
+# Agent prompt. Drives the hand-built tool-calling loop in finreport/agent/loop.py: the
 # model is given tools and this goal, and decides what to call. {company} is
 # filled in; REPORT_LANGUAGE is concatenated.
 AGENT_PROMPT = (

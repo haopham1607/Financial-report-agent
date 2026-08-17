@@ -1,4 +1,4 @@
-"""Tests for web_search.py — the Tavily wrapper. Run: python test_web_search.py
+"""Tests for finreport/tools/web_search.py — the Tavily wrapper. Run: python -m tests.test_web_search
 
 Plain asserts, no test framework. Tavily is never called: tests monkeypatch
 _client() with a fake, and the no-key path needs no client at all.

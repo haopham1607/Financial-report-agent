@@ -1,4 +1,4 @@
-"""Tests for the yfinance adapter. Run: python test_data_source.py
+"""Tests for the yfinance adapter. Run: python -m tests.test_market_data
 
 The adapter (`_adapt`) is pure code, so these run with no network — they feed
 it raw-currency rows (real Hoa Phat figures, ×1e9) and check the mapping,

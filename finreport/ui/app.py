@@ -161,7 +161,6 @@ def main() -> None:
             else:
                 st.markdown(content)
 
-
     # --- Deferred build (runs LAST) ---
     # Every widget above — the tabs, their buttons, the reports — has already
     # rendered by this point, so running the slow build here never blanks them out.

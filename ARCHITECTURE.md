@@ -107,12 +107,6 @@ Dependency flow (one direction):
 
 ### Core pipeline
 
-**`schemas.py`** — the **data contracts.** Pydantic models describing a report
-(`NarrativeReport`, and the pieces: `YearFinancial`, `Margins`, `Segment`,
-`BalanceSheet`, `CashFlow`). The writer's output is *enforced* against
-`NarrativeReport` (it cannot return a malformed shape) and the dashboard renders
-this shape.
-
 **`finreport/tools/market_data.py`** — **structured financials from yfinance.**
 - `resolve_ticker(name)` — one small LLM call, `"Vinamilk" → "VNM.VN"`.
 - `fetch_financials(ticker)` — yfinance → an **adapter** (`_adapt`) that maps the
