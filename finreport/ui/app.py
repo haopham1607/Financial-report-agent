@@ -18,10 +18,6 @@ from finreport.ui.render import render_report
 
 L = get_labels()
 
-st.set_page_config(page_title=L["app_title"], page_icon="📊", layout="wide")
-st.title(L["app_title"])
-st.caption(L["app_caption"])
-
 STATE_ICONS = {"running": "🔄", "done": "✅", "failed": "❌"}
 STATE_TEXT = {
     "running": L["state_running"],
@@ -47,6 +43,10 @@ def show_jobs() -> None:
 
 def main() -> None:
     """Draw the page. Streamlit re-runs this on every interaction."""
+    st.set_page_config(page_title=L["app_title"], page_icon="📊", layout="wide")
+    st.title(L["app_title"])
+    st.caption(L["app_caption"])
+
     # --- Start form ---
     with st.form("start_form"):
         raw = st.text_input(L["company_input"], placeholder=L["company_placeholder"])
