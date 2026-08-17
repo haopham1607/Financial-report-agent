@@ -6,5 +6,5 @@ Plain-assert test modules (no framework). Run from the project root:
     ./.venv/bin/python -m tests.test_writer   # one module
 
 Running as `-m` puts the project root on sys.path, so the tests import the
-app's modules (config, research, ...) directly.
+app's modules (finreport.agent.loop, finreport.reporting.checks, ...) directly.
 """
