@@ -12,7 +12,9 @@ import time
 from google.genai import types
 
 from finreport.agent.model import MODEL, client
-from finreport.agent.prompts import AGENT_PROMPT, EXCLUDE_DOMAINS
+from finreport.agent.prompts import (AGENT_PROMPT, EXCLUDE_DOMAINS,
+                                     KNOWN_TICKER_NOTE)
+from finreport.tools import ticker_cache
 from finreport.tools.market_data import fetch_financials, resolve_ticker
 from finreport.tools.web_search import search
 
@@ -156,9 +158,14 @@ def _dispatch(name, args):
 
 def run_agent(company: str) -> dict:
     """Drive the tool-calling loop for one company; return the report dict."""
-    contents = [types.Content(
-        role="user",
-        parts=[types.Part(text=AGENT_PROMPT.format(company=company))])]
+    # A remembered ticker is handed to the agent up front, so it can go straight
+    # to fetch_financials instead of spending a turn on resolve_ticker.
+    prompt = AGENT_PROMPT.format(company=company)
+    known = ticker_cache.get(company)
+    if known:
+        prompt += KNOWN_TICKER_NOTE.format(ticker=known["ticker"],
+                                           name=known["name"] or company)
+    contents = [types.Content(role="user", parts=[types.Part(text=prompt)])]
     numbers, sources, seen = {}, [], set()
     final = None
     # The loop is nondeterministic, so record what it actually did: how many

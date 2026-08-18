@@ -48,3 +48,15 @@ analysis in '''
     + REPORT_LANGUAGE
     + '''.'''
 )
+
+# Appended to AGENT_PROMPT only when the ticker is already cached, so the agent
+# can skip resolve_ticker entirely (saving a whole turn). The company name is
+# included so the agent can tell a stale/wrong cache entry from a correct one.
+KNOWN_TICKER_NOTE = (
+    '''
+
+The Yahoo Finance ticker for this company is already known: {ticker} ({name}). \
+Use it directly with fetch_financials — you do not need to call resolve_ticker. \
+Only call resolve_ticker if "{name}" is clearly not the company you were asked \
+about.'''
+)

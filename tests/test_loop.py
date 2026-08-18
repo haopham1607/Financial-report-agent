@@ -300,6 +300,44 @@ def test_assemble_coerces_missing_and_bad_fields():
     assert report["context"] == ""
 
 
+# --- the known-ticker note (cache hit lets the agent skip resolve_ticker) ---
+
+def _capture_prompt(seen):
+    """A _model_turn stub that records the opening prompt, then submits."""
+    def stub(contents):
+        seen["prompt"] = contents[0].parts[0].text
+        return None, [("submit_report", {"summary": "S", "verdict": "V",
+                                         "health": "good", "analysis": "A"})]
+    return stub
+
+
+def test_prompt_gains_the_known_ticker_on_a_cache_hit():
+    seen = {}
+    saved = agent_loop.ticker_cache.get
+    agent_loop.ticker_cache.get = lambda c: {"ticker": "VNM.VN",
+                                             "name": "Vietnam Dairy Products JSC"}
+    agent_loop._model_turn = _capture_prompt(seen)
+    try:
+        agent_loop.run_agent("Vinamilk")
+    finally:
+        agent_loop.ticker_cache.get = saved
+    assert "VNM.VN" in seen["prompt"]
+    assert "Vietnam Dairy Products JSC" in seen["prompt"]
+
+
+def test_prompt_is_unchanged_on_a_cache_miss():
+    from finreport.agent.prompts import AGENT_PROMPT
+    seen = {}
+    saved = agent_loop.ticker_cache.get
+    agent_loop.ticker_cache.get = lambda c: None
+    agent_loop._model_turn = _capture_prompt(seen)
+    try:
+        agent_loop.run_agent("Vinamilk")
+    finally:
+        agent_loop.ticker_cache.get = saved
+    assert seen["prompt"] == AGENT_PROMPT.format(company="Vinamilk")
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0
