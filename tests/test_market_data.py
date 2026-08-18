@@ -5,6 +5,8 @@ it raw-currency rows (real Hoa Phat figures, ×1e9) and check the mapping,
 billions normalisation, and derived computations.
 """
 
+from finreport.tools import market_data, ticker_cache
+from finreport.tools.market_data import _Ticker
 from finreport.tools.market_data import _adapt
 
 B = 1e9
@@ -76,6 +78,77 @@ def test_row_values_prefers_broader_cash_then_falls_back():
     assert _row_values(df, (broad, strict)) == {2025: 23149.7, 2024: 20000.0}
     # broad absent -> falls back to strict cash
     assert _row_values(df.drop(broad), (broad, strict)) == {2025: 1794.9, 2024: 1500.0}
+
+
+# --- resolve_ticker + the on-disk cache ---
+
+def test_cache_hit_skips_the_model_call():
+    # The whole point of the feature: a remembered ticker costs no request.
+    class _Models:
+        def generate_content(self, **kwargs):
+            raise AssertionError("the model must not be called on a cache hit")
+
+    class _Client:
+        models = _Models()
+
+    saved = (market_data.client, ticker_cache.get)
+    market_data.client = _Client()
+    ticker_cache.get = lambda name: {"ticker": "VNM.VN", "name": "Vinamilk JSC"}
+    try:
+        assert market_data.resolve_ticker("Vinamilk") == "VNM.VN"
+    finally:
+        (market_data.client, ticker_cache.get) = saved
+
+
+def test_miss_calls_the_model_and_remembers_the_result():
+    written = {}
+
+    class _Resp:
+        parsed = _Ticker(ticker="VNM.VN", name="Vietnam Dairy Products JSC")
+
+    class _Models:
+        def generate_content(self, **kwargs):
+            return _Resp()
+
+    class _Client:
+        models = _Models()
+
+    saved = (market_data.client, ticker_cache.get, ticker_cache.put)
+    market_data.client = _Client()
+    ticker_cache.get = lambda name: None
+    ticker_cache.put = lambda name, ticker, company="": written.update(
+        {"key": name, "ticker": ticker, "company": company})
+    try:
+        assert market_data.resolve_ticker("Vinamilk") == "VNM.VN"
+    finally:
+        (market_data.client, ticker_cache.get, ticker_cache.put) = saved
+    assert written == {"key": "Vinamilk", "ticker": "VNM.VN",
+                       "company": "Vietnam Dairy Products JSC"}
+
+
+def test_failed_resolve_is_not_remembered():
+    # Never memoize a failure — the next run should get a fresh attempt.
+    written = {}
+
+    class _Resp:
+        parsed = _Ticker(ticker=None)
+
+    class _Models:
+        def generate_content(self, **kwargs):
+            return _Resp()
+
+    class _Client:
+        models = _Models()
+
+    saved = (market_data.client, ticker_cache.get, ticker_cache.put)
+    market_data.client = _Client()
+    ticker_cache.get = lambda name: None
+    ticker_cache.put = lambda name, ticker, company="": written.update({"x": 1})
+    try:
+        assert market_data.resolve_ticker("Nowhere Inc") is None
+    finally:
+        (market_data.client, ticker_cache.get, ticker_cache.put) = saved
+    assert written == {}
 
 
 if __name__ == "__main__":

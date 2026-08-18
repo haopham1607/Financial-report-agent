@@ -5,11 +5,16 @@ Yahoo Finance instead of guessing. Numbers are mapped and normalised in plain
 code (no LLM); the only LLM step is resolving a company name to a ticker.
 """
 
+import logging
+
 import yfinance as yf
 from google.genai import types
 from pydantic import BaseModel
 
 from finreport.agent.model import MODEL, client
+from finreport.tools import ticker_cache
+
+log = logging.getLogger(__name__)
 
 # --- name -> ticker (the one small LLM call) ------------------------------
 
@@ -17,17 +22,28 @@ TICKER_PROMPT = (
     'What is the Yahoo Finance ticker symbol for the company "{company}"? '
     "Vietnamese-listed companies use the .VN suffix (e.g. Vinamilk -> VNM.VN, "
     "Hoa Phat -> HPG.VN, Mobile World -> MWG.VN). US companies use their plain "
-    "symbol (e.g. Apple -> AAPL). Return only the ticker, or null if you are "
-    "not confident."
+    "symbol (e.g. Apple -> AAPL). Also return the official name of the company "
+    "that ticker belongs to, so a wrong match can be spotted. Return null for "
+    "the ticker if you are not confident."
 )
 
 
 class _Ticker(BaseModel):
     ticker: str | None = None
+    name: str | None = None   # official name of the company that ticker belongs to
 
 
 def resolve_ticker(company_name: str) -> str | None:
-    """Map a company name to its Yahoo Finance ticker, or None if unsure."""
+    """Map a company name to its Yahoo Finance ticker, or None if unsure.
+
+    A remembered name is answered from the on-disk cache, which costs no model
+    request. A fresh resolve is remembered for next time; a failure is not.
+    """
+    cached = ticker_cache.get(company_name)
+    if cached:
+        log.info("ticker for %r from cache: %s (%s)",
+                 company_name, cached["ticker"], cached["name"])
+        return cached["ticker"]
     try:
         resp = client.models.generate_content(
             model=MODEL,
@@ -37,7 +53,9 @@ def resolve_ticker(company_name: str) -> str | None:
         )
         parsed = resp.parsed
         if isinstance(parsed, _Ticker) and parsed.ticker:
-            return parsed.ticker.strip()
+            ticker = parsed.ticker.strip()
+            ticker_cache.put(company_name, ticker, (parsed.name or "").strip())
+            return ticker
     except Exception:
         return None
     return None
